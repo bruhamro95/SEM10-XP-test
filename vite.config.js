@@ -2,10 +2,8 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
-// GitHub Pages project-site base path. If you deploy this repo as
-// https://<username>.github.io/SEM10-XP/  keep this as "/SEM10-XP/".
-// If you deploy to a custom domain or the root of github.io, change to "/".
-const BASE_PATH = process.env.SEM10_BASE || "/SEM10-XP/";
+// GitHub Pages project-site base path for this repository.
+const BASE_PATH = process.env.SEM10_BASE || "/SEM10-XP-test/";
 
 export default defineConfig({
   base: BASE_PATH,
@@ -37,12 +35,8 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // App-shell precaching: everything Vite emits (JS/CSS/HTML/icons) gets
-        // hashed and precached, so the installed app loads reliably offline.
         globPatterns: ["**/*.{js,css,html,png,svg,ico,webmanifest}"],
         cleanupOutdatedCaches: true,
-        // New deploys: the new service worker installs in the background and
-        // takes over on next load instead of fighting the old one.
         skipWaiting: true,
         clientsClaim: true,
         navigateFallback: BASE_PATH + "index.html",
