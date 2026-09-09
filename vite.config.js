@@ -15,7 +15,19 @@ const projectSoundPaths = {
     if (!id.endsWith("/src/App.jsx")) return null;
 
     const soundBase = `${BASE_PATH}sounds/`;
-    const transformed = code.replaceAll('"/sounds/', `"${soundBase}`);
+    let transformed = code.replaceAll('"/sounds/', `"${soundBase}`);
+
+    // The XP startup sound belongs to the desktop transition, not the initial
+    // black boot screen. Move that one call from component mount to the moment
+    // the desktop is actually ready (after login + loading).
+    transformed = transformed.replace(
+      '  useEffect(() => {\n    playChime("boot");\n    const t = setTimeout(() => setPreBoot(true), 4000);',
+      '  useEffect(() => {\n    const t = setTimeout(() => setPreBoot(true), 4000);'
+    );
+    transformed = transformed.replace(
+      '  const ready = preBoot && loggedIn && booted && progressLoaded && sessionsLoaded && settingsLoaded && tasksLoaded && plannerLoaded && examLoaded;\n',
+      '  const ready = preBoot && loggedIn && booted && progressLoaded && sessionsLoaded && settingsLoaded && tasksLoaded && plannerLoaded && examLoaded;\n  useEffect(() => { if (ready) playChime("boot"); }, [ready]);\n'
+    );
 
     return transformed === code ? null : { code: transformed, map: null };
   },
