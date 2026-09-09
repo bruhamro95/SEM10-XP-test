@@ -5,9 +5,26 @@ import { VitePWA } from "vite-plugin-pwa";
 // GitHub Pages project-site base path for this repository.
 const BASE_PATH = process.env.SEM10_BASE || "/SEM10-XP-test/";
 
+// App.jsx historically used /sounds/... absolute URLs. Rewrite those literals
+// at build time so they point inside the GitHub Pages project site. This keeps
+// Audio completely native and avoids runtime URL interception.
+const projectSoundPaths = {
+  name: "project-sound-paths",
+  enforce: "pre",
+  transform(code, id) {
+    if (!id.endsWith("/src/App.jsx")) return null;
+
+    const soundBase = `${BASE_PATH}sounds/`;
+    const transformed = code.replaceAll('"/sounds/', `"${soundBase}`);
+
+    return transformed === code ? null : { code: transformed, map: null };
+  },
+};
+
 export default defineConfig({
   base: BASE_PATH,
   plugins: [
+    projectSoundPaths,
     react(),
     VitePWA({
       registerType: "autoUpdate",
