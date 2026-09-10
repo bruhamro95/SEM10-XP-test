@@ -1,6 +1,4 @@
-/* Mobile-friendly search enhancer for the Pomodoro task picker.
-   The picker remains the native XP select; this adds a small search field above it
-   so phones don't have to scroll through the entire list. */
+/* Mobile-friendly search enhancer for the Pomodoro task picker. */
 function installTaskSearch() {
   const selects = document.querySelectorAll('.timer-app select.xp-select');
   selects.forEach((select) => {
@@ -9,17 +7,21 @@ function installTaskSearch() {
 
     const wrap = document.createElement('div');
     wrap.className = 'mobile-task-search-wrap';
+    wrap.style.marginBottom = '6px';
 
     const input = document.createElement('input');
     input.type = 'search';
     input.className = 'xp-text-input mobile-task-search';
     input.placeholder = 'Search tasks / lectures...';
     input.autocomplete = 'off';
+    input.style.width = '100%';
     input.setAttribute('aria-label', 'Search tasks and lectures');
 
     const note = document.createElement('div');
     note.className = 'xp-small-text mobile-task-search-note';
-    note.textContent = 'Type to narrow the list on mobile — e.g. “cardiac” or “oncology”.';
+    note.style.marginTop = '3px';
+    note.style.opacity = '0.65';
+    note.textContent = 'Type to narrow the list — e.g. “cardiac”, “oncology”, or “gym”.';
 
     wrap.appendChild(input);
     wrap.appendChild(note);
