@@ -1,4 +1,5 @@
 import "./audio-unlock.js";
+import "./mobile-task-search.js";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
