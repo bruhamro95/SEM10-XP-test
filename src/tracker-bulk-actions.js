@@ -47,6 +47,14 @@
   }
 
   function disciplineFor(row) {
+    // Prefer the Tracker window's actual title. This prevents Medicine/Surgery
+    // from being inferred incorrectly when both tracker windows are mounted.
+    const win = row.closest(".xp-window");
+    const title = win?.querySelector(".xp-titlebar")?.textContent?.replace(/\s+/g, " ").trim() || "";
+    if (/\bmedicine\b/i.test(title)) return "medicine";
+    if (/\bsurgery\b/i.test(title)) return "surgery";
+
+    // Fallback for older markup where the title bar is not exposed.
     const section = info(row).section;
     if (SURGERY.has(section)) return "surgery";
     if (MEDICINE.has(section)) return "medicine";
