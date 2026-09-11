@@ -1,60 +1,70 @@
 from pathlib import Path
+import re
 
 path = Path("vite.config.js")
 text = path.read_text(encoding="utf-8")
 
-# Keep the existing UI, but stop the selected-task list from changing the window size.
-old = 'style={{ marginTop: 8 }}>'
-new = 'style={{ marginTop: 8, maxHeight: 120, overflowY: "auto", overflowX: "hidden" }}>'
-if old in text and 'maxHeight: 120' not in text:
-    text = text.replace(old, new, 1)
+# Keep the selected list compact so adding lectures does not make the XP window grow.
+text = text.replace(
+    'style={{ marginTop: 8 }}>',
+    'style={{ marginTop: 8, maxHeight: 120, overflowY: "auto", overflowX: "hidden" }}>',
+    1,
+)
+text = text.replace(
+    'style={{ marginTop: 4, padding: "3px 5px", border: "1px solid #aaa", background: "#f7f5ea" }}',
+    'style={{ marginTop: 3, padding: "2px 4px", border: "1px solid #aaa", background: "#f7f5ea", minWidth: 0, fontSize: 11 }}',
+    1,
+)
 
-# Give each choice the metadata already understood by timerActions.linkMany().
-old = 'choices.push({ id: "plan:" + p.id, label: p.dateKey + " — " + (lec ? lec.name : "custom") + (p.part ? " (" + p.part + ")" : "") + (p.stage ? " [" + ((STAGES.find((s) => s.key === p.stage) || {}).label || "") + "]" : "") });'
-new = 'choices.push({ id: "plan:" + p.id, label: p.dateKey + " — " + (lec ? lec.name : "custom") + (p.part ? " (" + p.part + ")" : "") + (p.stage ? " [" + ((STAGES.find((s) => s.key === p.stage) || {}).label || "") + "]" : ""), groupLabel: lec ? lec.section : p.discipline, stage: p.stage || "", planId: p.id, lectureId: p.lectureId || "" });'
-if old in text:
-    text = text.replace(old, new, 1)
+# The old UI used a controlled picker and an encoded multi: value. Keep the picker,
+# but never change its value as a side effect of adding an item.
+text = re.sub(
+    r'  const addSelected = \(\) => \{.*?\n  \};',
+    '''  const addSelected = () => {
+    if (!pickerValue) return;
+    if (!multiSelect) {
+      timerActions.link(pickerValue);
+      setPickerValue("");
+      return;
+    }
+    setSelectedIds((prev) => prev.includes(pickerValue) ? prev : [...prev, pickerValue]);
+  };''',
+    text,
+    count=1,
+    flags=re.S,
+)
 
-old = 'tasks.forEach((t) => choices.push({ id: "task:" + t.id, label: t.project + " — " + t.name }));'
-new = 'tasks.forEach((t) => choices.push({ id: "task:" + t.id, label: t.project + " — " + t.name, groupLabel: t.project, stage: "", planId: "", lectureId: "" }));'
-if old in text:
-    text = text.replace(old, new, 1)
-
-old = 'LECTURES.forEach((l) => choices.push({ id: "lec:" + l.id, label: l.section + " — " + l.name }));'
-new = 'LECTURES.forEach((l) => choices.push({ id: "lec:" + l.id, label: l.section + " — " + l.name, groupLabel: l.section, stage: "", planId: "", lectureId: l.id }));'
-if old in text:
-    text = text.replace(old, new, 1)
-
-# The old implementation only sent the first lecture through timerActions.link().
-# Send the complete selected item objects through the existing linkMany() action.
-old = '''  const applySelection = () => {
-    if (!selectedIds.length) return;
-    const lectureIds = selectedIds.filter((id) => id.startsWith("lec:")).map((id) => id.slice(4));
-    if (lectureIds.length) timerActions.link("multi:" + encodeURIComponent(JSON.stringify(lectureIds)));
-    else timerActions.link(selectedIds[0]);
-  };'''
-new = '''  const applySelection = () => {
+# Pass full item metadata to the existing linkMany() timer action so the timer/session
+# keeps every selected lecture, not only the first one.
+text = re.sub(
+    r'  const applySelection = \(\) => \{.*?\n  \};',
+    '''  const applySelection = () => {
     if (!selectedIds.length) return;
     const items = selectedIds.map((id) => choices.find((c) => c.id === id)).filter(Boolean);
     if (items.length === 1) timerActions.link(items[0].id);
     else timerActions.linkMany(items);
-  };'''
-if old not in text:
-    raise SystemExit("applySelection block not found; refusing to make a partial patch")
-text = text.replace(old, new, 1)
+  };''',
+    text,
+    count=1,
+    flags=re.S,
+)
 
-# Do not dispatch a React select change when merely adding an item. The selected
-# list is local UI state; the timer is updated only by Apply selection.
-old = 'setSelectedIds((prev) => prev.includes(pickerValue) ? prev : [...prev, pickerValue]);\n    setPickerValue("");'
-new = 'setSelectedIds((prev) => prev.includes(pickerValue) ? prev : [...prev, pickerValue]);'
-if old in text:
-    text = text.replace(old, new, 1)
-
-# Make selected rows compact and prevent long lecture names from forcing the XP window wider.
-old = 'style={{ marginTop: 4, padding: "3px 5px", border: "1px solid #aaa", background: "#f7f5ea" }}'
-new = 'style={{ marginTop: 4, padding: "3px 5px", border: "1px solid #aaa", background: "#f7f5ea", minWidth: 0, fontSize: 11 }}'
-if old in text:
-    text = text.replace(old, new, 1)
+# Add the metadata needed by linkMany() without changing the visible labels.
+text = text.replace(
+    'choices.push({ id: "plan:" + p.id, label: p.dateKey + " — " + (lec ? lec.name : "custom") + (p.part ? " (" + p.part + ")" : "") + (p.stage ? " [" + ((STAGES.find((s) => s.key === p.stage) || {}).label || "") + "]" : "") });',
+    'choices.push({ id: "plan:" + p.id, label: p.dateKey + " — " + (lec ? lec.name : "custom") + (p.part ? " (" + p.part + ")" : "") + (p.stage ? " [" + ((STAGES.find((s) => s.key === p.stage) || {}).label || "") + "]" : ""), groupLabel: lec ? lec.section : p.discipline, stage: p.stage || "", planId: p.id, lectureId: p.lectureId || "" });',
+    1,
+)
+text = text.replace(
+    'tasks.forEach((t) => choices.push({ id: "task:" + t.id, label: t.project + " — " + t.name }));',
+    'tasks.forEach((t) => choices.push({ id: "task:" + t.id, label: t.project + " — " + t.name, groupLabel: t.project, stage: "", planId: "", lectureId: "" }));',
+    1,
+)
+text = text.replace(
+    'LECTURES.forEach((l) => choices.push({ id: "lec:" + l.id, label: l.section + " — " + l.name }));',
+    'LECTURES.forEach((l) => choices.push({ id: "lec:" + l.id, label: l.section + " — " + l.name, groupLabel: l.section, stage: "", planId: "", lectureId: l.id }));',
+    1,
+)
 
 path.write_text(text, encoding="utf-8")
-print("Pomodoro multi-task patch applied successfully")
+print("Pomodoro multi-task patch applied")
