@@ -2,6 +2,8 @@ import "./audio-unlock.js";
 import "./mobile-task-search.js";
 import "./tracker-sort-filter.js";
 import "./tracker-bulk-actions.js";
+import "./tracker-chapter-options.js";
+import "./audio-unlock.js";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
