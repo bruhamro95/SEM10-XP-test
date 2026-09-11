@@ -282,7 +282,12 @@
     });
   }
 
-  document.addEventListener("click", () => closePanel(), true);
+  document.addEventListener("click", (e) => {
+    if (!openPanel) return;
+    const target = e.target;
+    if (openPanel.contains(target) || openPanel.button?.contains(target)) return;
+    closePanel();
+  }, true);
   window.addEventListener("resize", () => { if (openPanel && !openPanel.hidden) scan(); });
   const observer = new MutationObserver(() => scan());
   observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
