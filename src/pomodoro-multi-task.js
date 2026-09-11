@@ -49,11 +49,17 @@
     state.selected.forEach((value, index) => {
       const row = document.createElement('div');
       row.className = 'pom-multi-row';
+      row.style.display = 'flex';
+      row.style.alignItems = 'center';
+      row.style.gap = '6px';
+      row.style.marginTop = '3px';
       const label = document.createElement('span');
+      label.style.flex = '1';
+      label.style.minWidth = '0';
       label.textContent = `${index + 1}. ${getLabel(value, select)}`;
       const remove = document.createElement('button');
       remove.type = 'button';
-      remove.className = 'pom-multi-remove';
+      remove.className = 'xp-btn xp-btn-sm pom-multi-remove';
       remove.textContent = '×';
       remove.title = 'Remove from this Pomodoro';
       remove.disabled = select.disabled;
@@ -84,12 +90,12 @@
     box.style.marginTop = '7px';
     box.innerHTML = `
       <div class="pom-multi-controls" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-        <button type="button" class="xp-button pom-multi-toggle" aria-pressed="false">Multi-select: OFF</button>
-        <button type="button" class="xp-button pom-multi-add" disabled>+ Add selected</button>
+        <button type="button" class="xp-btn pom-multi-toggle" aria-pressed="false">Multi-select: OFF</button>
+        <button type="button" class="xp-btn pom-multi-add" disabled>+ Add selected</button>
       </div>
       <div class="pom-multi-meta" style="display:flex;justify-content:space-between;align-items:center;margin-top:5px">
         <span class="pom-multi-count xp-small-text">No lectures selected</span>
-        <button type="button" class="pom-multi-clear">Clear</button>
+        <button type="button" class="xp-btn xp-btn-sm pom-multi-clear">Clear</button>
       </div>
       <div class="pom-multi-list"></div>
     `;
