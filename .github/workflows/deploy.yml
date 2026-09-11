@@ -30,6 +30,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Apply Pomodoro patch
+        if: github.ref_name == 'pomodoro-multi-task'
+        run: python3 scripts/fix_pomodoro_multi_task.py
+
       - name: Build
         run: npm run build
 
