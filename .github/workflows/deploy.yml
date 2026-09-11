@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -20,6 +20,132 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Apply Pomodoro multi-task patch
+        if: github.ref_name == 'pomodoro-multi-task'
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path('src/App.jsx')
+          text = path.read_text(encoding='utf-8')
+          marker = '// POMODORO_MULTI_TASK_V1'
+          if marker in text:
+              raise SystemExit(0)
+          old_state = 'linkedId: "", linkedLabel: "", linkedGroup: "", linkedStage: "", linkedPlanId: "", linkedLectureId: "", soundEnabled: true'
+          new_state = 'linkedId: "", linkedLabel: "", linkedGroup: "", linkedStage: "", linkedPlanId: "", linkedLectureId: "", linkedItems: [], soundEnabled: true'
+          if old_state not in text: raise SystemExit('timer state initializer not found')
+          text = text.replace(old_state, new_state, 1)
+          start = text.index('  const runCompletion = useCallback(() => {')
+          end = text.index('  const completeSession = useCallback', start)
+          completion = '''  const runCompletion = useCallback(() => {
+    const finished = activeSessionRef.current || { mode: timer.mode, linkedLabel: "", linkedGroup: "", linkedStage: "", linkedPlanId: "", linkedLectureId: "", linkedItems: [] };
+    playChime("notify", timer.soundEnabled);
+    if (finished.mode === "pomodoro") {
+      const items = Array.isArray(finished.linkedItems) && finished.linkedItems.length ? finished.linkedItems : (finished.linkedId ? [{ id: finished.linkedId, label: finished.linkedLabel, groupLabel: finished.linkedGroup, stage: finished.linkedStage, planId: finished.linkedPlanId, lectureId: finished.linkedLectureId }] : []);
+      const labels = items.map((x) => x.label).filter(Boolean);
+      const groups = Array.from(new Set(items.map((x) => x.groupLabel).filter(Boolean)));
+      addSession({ id: "S" + Date.now(), ts: new Date().toISOString(), durationMin: settings.pomodoroMin, label: labels.length ? labels.join(" + ") : "Freeform", groupLabel: groups.length ? groups.join(" + ") : "Freeform", lectureId: items[0]?.lectureId || null, stage: items[0]?.stage || null, planId: items[0]?.planId || null, linkedItems: items.map((x) => ({ id: x.id, label: x.label, groupLabel: x.groupLabel, stage: x.stage || null, planId: x.planId || null, lectureId: x.lectureId || null })) });
+      const planIds = items.map((x) => x.planId).filter(Boolean);
+      if (planIds.length) setPlan((prev) => prev.map((p) => planIds.includes(p.id) ? { ...p, completedPoms: (p.completedPoms || 0) + 1 } : p));
+      notify("Pomodoro complete", labels.length ? "Nice work on: " + labels.join(", ") : "Time for a break.");
+      pomosThisSet.current += 1;
+    } else notify("Break's over", "Back to it when you're ready.");
+    const nextMode = timer.mode === "pomodoro" ? (pomosThisSet.current % settings.longBreakEvery === 0 ? "long" : "short") : "pomodoro";
+    const willAuto = nextMode === "pomodoro" ? settings.autoStartPomodoros : settings.autoStartBreaks;
+    activeSessionRef.current = willAuto ? { mode: nextMode, linkedId: timer.linkedId, linkedLabel: timer.linkedLabel, linkedGroup: timer.linkedGroup, linkedStage: timer.linkedStage, linkedPlanId: timer.linkedPlanId, linkedLectureId: timer.linkedLectureId, linkedItems: timer.linkedItems || [] } : null;
+    setTimer((t) => ({ ...t, mode: nextMode, running: willAuto, paused: false, endsAt: willAuto ? Date.now() + durFor(nextMode) * 1000 : null, remaining: durFor(nextMode) }));
+  }, [timer, settings, durFor, plan]);
+
+'''
+          text = text[:start] + completion + text[end:]
+          start = text.index('  const timerActions = {')
+          end = text.index('  const [windows, setWindows] = useState([]);', start)
+          actions = '''  const timerActions = {
+    start: () => { playChime("start", timer.soundEnabled); if (!timer.paused) activeSessionRef.current = { mode: timer.mode, linkedId: timer.linkedId, linkedLabel: timer.linkedLabel, linkedGroup: timer.linkedGroup, linkedStage: timer.linkedStage, linkedPlanId: timer.linkedPlanId, linkedLectureId: timer.linkedLectureId, linkedItems: Array.isArray(timer.linkedItems) ? timer.linkedItems : [] }; setTimer((t) => ({ ...t, running: true, endsAt: Date.now() + (t.paused ? t.remaining : durFor(t.mode)) * 1000 })); },
+    pause: () => { playChime("pause", timer.soundEnabled); setTimer((t) => ({ ...t, running: false, paused: true, remaining: t.endsAt ? Math.max(0, Math.round((t.endsAt - Date.now()) / 1000)) : t.remaining, endsAt: null })); },
+    skip: () => { if (!timer.running && !timer.paused) return; completingRef.current = timer.endsAt; runCompletion(); },
+    reset: () => { playChime("reset", timer.soundEnabled); completingRef.current = null; activeSessionRef.current = null; setTimer((t) => ({ ...t, running: false, paused: false, endsAt: null, remaining: durFor(t.mode) })); },
+    toggleSound: () => setTimer((t) => ({ ...t, soundEnabled: t.soundEnabled === false })),
+    setMode: (m) => { activeSessionRef.current = null; setTimer((t) => ({ ...t, mode: m, running: false, paused: false, endsAt: null, remaining: durFor(m) })); },
+    link: (val) => setTimer((t) => {
+      if (t.running || t.paused) return t;
+      if (!val) return { ...t, linkedId: "", linkedLabel: "", linkedGroup: "", linkedStage: "", linkedPlanId: "", linkedLectureId: "", linkedItems: [] };
+      if (val.startsWith("lec:")) { const l = LECTURES.find((x) => x.id === val.slice(4)); const item = l ? { id: val, label: l.name, groupLabel: l.section, stage: "", planId: "", lectureId: l.id } : null; return { ...t, linkedId: val, linkedLabel: l ? l.name : "", linkedGroup: l ? l.section : "", linkedStage: "", linkedPlanId: "", linkedLectureId: l ? l.id : "", linkedItems: item ? [item] : [] }; }
+      if (val.startsWith("task:")) { const tk = tasks.find((x) => x.id === val.slice(5)); const item = tk ? { id: val, label: tk.name, groupLabel: tk.project, stage: "", planId: "", lectureId: "" } : null; return { ...t, linkedId: val, linkedLabel: tk ? tk.name : "", linkedGroup: tk ? tk.project : "", linkedStage: "", linkedPlanId: "", linkedLectureId: "", linkedItems: item ? [item] : [] }; }
+      if (val.startsWith("plan:")) { const entry = plan.find((p) => p.id === val.slice(5)); if (!entry) return t; const lec = LECTURES.find((l) => l.id === entry.lectureId); const stageLabel = entry.stage ? (STAGES.find((s) => s.key === entry.stage) || {}).label : ""; const label = (lec ? lec.name : "Planner item") + (entry.part ? " — " + entry.part : "") + (stageLabel ? " (" + stageLabel + ")" : ""); const item = { id: val, label, groupLabel: lec ? lec.section : entry.discipline, stage: entry.stage || "", planId: entry.id, lectureId: entry.lectureId || "" }; return { ...t, linkedId: val, linkedLabel: label, linkedGroup: item.groupLabel, linkedStage: item.stage, linkedPlanId: item.planId, linkedLectureId: item.lectureId, linkedItems: [item] }; }
+      return t;
+    }),
+    linkMany: (items) => setTimer((t) => {
+      if (t.running || t.paused) return t;
+      const safe = Array.isArray(items) ? items.filter(Boolean) : [];
+      if (!safe.length) return { ...t, linkedId: "", linkedLabel: "", linkedGroup: "", linkedStage: "", linkedPlanId: "", linkedLectureId: "", linkedItems: [] };
+      return { ...t, linkedId: safe[0].id, linkedLabel: safe.length === 1 ? safe[0].label : safe.length + " tasks selected", linkedGroup: Array.from(new Set(safe.map((x) => x.groupLabel).filter(Boolean))).join(" + "), linkedStage: safe[0].stage || "", linkedPlanId: safe.length === 1 ? (safe[0].planId || "") : "", linkedLectureId: safe.length === 1 ? (safe[0].lectureId || "") : "", linkedItems: safe };
+    }),
+  };
+
+'''
+          text = text[:start] + actions + text[end:]
+          start = text.index('function TimerApp(')
+          end = text.index('/* ============================================================================\n   GOALS APP', start)
+          timer = '''function TimerApp({ timer, timerActions, settings, setSettings, tasks, addTask, plan }) {
+  const [newTaskProject, setNewTaskProject] = useState("");
+  const [newTaskName, setNewTaskName] = useState("");
+  const [taskSearch, setTaskSearch] = useState("");
+  const [multiSelect, setMultiSelect] = useState(false);
+  const [selectedItems, setSelectedItems] = useState(() => Array.isArray(timer.linkedItems) ? timer.linkedItems : []);
+  const [notifPermission, setNotifPermission] = useState(typeof Notification !== "undefined" ? Notification.permission : "unsupported");
+  const { mode, running, secondsLeft, linkedLabel } = timer;
+  const durMin = mode === "pomodoro" ? settings.pomodoroMin : mode === "short" ? settings.shortMin : settings.longMin;
+  const pct = durMin > 0 ? ((durMin * 60 - secondsLeft) / (durMin * 60)) * 100 : 0;
+  const askNotifPermission = () => { if (typeof Notification === "undefined") return; Notification.requestPermission().then((p) => setNotifPermission(p)); };
+  const projects = Array.from(new Set(tasks.map((t) => t.project))).filter(Boolean);
+  const options = (() => {
+    const q = taskSearch.trim().toLowerCase(); const matches = (s) => !q || s.toLowerCase().includes(q); const out = [];
+    if (plan) plan.filter((p) => !p.done).forEach((p) => { const lec = LECTURES.find((l) => l.id === p.lectureId); const stageLabel = p.stage ? (STAGES.find((s) => s.key === p.stage) || {}).label : ""; const label = (lec ? lec.name : "Planner item") + (p.part ? " — " + p.part : "") + (stageLabel ? " (" + stageLabel + ")" : ""); if (matches(label)) out.push({ id: "plan:" + p.id, label: p.dateKey + " — " + label, groupLabel: lec ? lec.section : p.discipline, stage: p.stage || "", planId: p.id, lectureId: p.lectureId || "", source: "Plan" }); });
+    tasks.forEach((t) => { const label = t.project + " — " + t.name; if (matches(label)) out.push({ id: "task:" + t.id, label: t.name, groupLabel: t.project, stage: "", planId: "", lectureId: "", source: "Task" }); });
+    ["Surgery", "Medicine"].forEach((disc) => LECTURES.filter((l) => l.discipline === disc).forEach((l) => { const label = l.section + " — " + l.name; if (matches(label)) out.push({ id: "lec:" + l.id, label: l.name, groupLabel: l.section, stage: "", planId: "", lectureId: l.id, source: disc }); }));
+    return out;
+  })();
+  const selectedIds = new Set(selectedItems.map((x) => x.id));
+  const addSelected = (id) => { const item = options.find((x) => x.id === id); if (!item || selectedIds.has(item.id)) return; setSelectedItems((prev) => [...prev, item]); };
+  const removeSelected = (id) => setSelectedItems((prev) => prev.filter((x) => x.id !== id));
+  const clearSelected = () => setSelectedItems([]);
+  const applyMultiSelection = () => timerActions.linkMany(selectedItems);
+  useEffect(() => { if (!running && !timer.paused) setSelectedItems(Array.isArray(timer.linkedItems) ? timer.linkedItems : []); }, [timer.linkedItems, running, timer.paused]);
+  return (
+    <div className="app-col timer-app">
+      <div className="row-gap" style={{ marginBottom: 10, justifyContent: "center" }}>{Object.keys(MODES).map((m) => <XPButton key={m} active={mode === m} onClick={() => timerActions.setMode(m)}>{MODES[m].label}</XPButton>)}</div>
+      <div className="timer-face" style={{ borderColor: MODES[mode].color }}><div className="timer-clock">{fmtClock(secondsLeft)}</div><XPProgress pct={pct} />{linkedLabel && <div className="xp-small-text timer-linked-label">on: {linkedLabel}</div>}</div>
+      <div className="row-gap" style={{ justifyContent: "center", marginTop: 10 }}>{!running ? <XPButton onClick={timerActions.start}><Play size={13} style={{ marginRight: 4, verticalAlign: -2 }} />Start</XPButton> : <XPButton onClick={timerActions.pause}><Pause size={13} style={{ marginRight: 4, verticalAlign: -2 }} />Pause</XPButton>}<XPButton onClick={timerActions.skip} disabled={!running && !timer.paused}><SkipForward size={13} style={{ marginRight: 4, verticalAlign: -2 }} />Skip</XPButton><XPButton onClick={timerActions.reset}><RotateCcw size={13} style={{ marginRight: 4, verticalAlign: -2 }} />Reset</XPButton><XPButton onClick={timerActions.toggleSound}>{timer.soundEnabled === false ? <VolumeX size={13} /> : <Volume2 size={13} />}</XPButton></div>
+      {notifPermission !== "granted" && notifPermission !== "unsupported" && <div className="notif-hint" onClick={askNotifPermission}><Bell size={12} style={{ marginRight: 4, verticalAlign: -2 }} />Enable notifications so a pomodoro finishing pops up even on another window/tab</div>}
+      <XPGroupBox title="What are you working on?" style={{ marginTop: 12 }}>
+        <div className="row-gap" style={{ alignItems: "center", marginBottom: 6 }}><XPButton small active={multiSelect} disabled={running || timer.paused} onClick={() => setMultiSelect((v) => !v)}>{multiSelect ? "✓ Multi-select ON" : "Multi-select OFF"}</XPButton>{multiSelect && <span className="xp-small-text">Select several, then add them.</span>}</div>
+        <input className="xp-text-input" style={{ width: "100%", marginBottom: 6 }} placeholder="Search tasks / lectures..." value={taskSearch} onChange={(e) => setTaskSearch(e.target.value)} disabled={running || timer.paused} />
+        {!multiSelect ? <select className="xp-select" value={timer.linkedId || ""} disabled={running || timer.paused} onChange={(e) => timerActions.link(e.target.value)}><option value="">— Freeform (not linked) —</option>{plan && plan.filter((p) => !p.done).length > 0 && <optgroup label="This Week's Plan">{plan.filter((p) => !p.done).map((p) => { const lec = LECTURES.find((l) => l.id === p.lectureId); const stageLabel = p.stage ? (STAGES.find((s) => s.key === p.stage) || {}).label : ""; return <option key={p.id} value={"plan:" + p.id}>{p.dateKey} — {lec ? lec.name : "custom"}{p.part ? " (" + p.part + ")" : ""}{stageLabel ? " [" + stageLabel + "]" : ""}</option>; })}</optgroup>}{projects.length > 0 && <optgroup label="My Tasks">{tasks.map((t) => <option key={t.id} value={"task:" + t.id}>{t.project} — {t.name}</option>)}</optgroup>}<optgroup label="Surgery">{LECTURES.filter((l) => l.discipline === "Surgery").map((l) => <option key={l.id} value={"lec:" + l.id}>{l.section} — {l.name}</option>)}</optgroup><optgroup label="Medicine">{LECTURES.filter((l) => l.discipline === "Medicine").map((l) => <option key={l.id} value={"lec:" + l.id}>{l.section} — {l.name}</option>)}</optgroup></select> : <><select className="xp-select" value="" disabled={running || timer.paused} onChange={(e) => addSelected(e.target.value)}><option value="">— choose a task/lecture to add —</option>{options.length === 0 && <option disabled>No matches</option>}{["Plan", "Task", "Surgery", "Medicine"].map((source) => { const os = options.filter((x) => x.source === source); return os.length ? <optgroup key={source} label={source === "Plan" ? "This Week's Plan" : source === "Task" ? "My Tasks" : source}>{os.map((x) => <option key={x.id} value={x.id}>{source === "Surgery" || source === "Medicine" ? x.groupLabel + " — " + x.label : x.label}</option>)}</optgroup> : null; })}</select><div className="row-gap" style={{ marginTop: 6 }}><XPButton small active disabled={!selectedItems.length || running || timer.paused} onClick={applyMultiSelection}>+ Add selected ({selectedItems.length})</XPButton>{selectedItems.length > 0 && <XPButton small onClick={clearSelected}>Clear</XPButton>}</div>{selectedItems.length > 0 && <div className="xp-small-text" style={{ marginTop: 7 }}><b>{selectedItems.length} assigned to this Pomodoro:</b>{selectedItems.map((item) => <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 3 }}><span style={{ flex: 1 }}>• {item.label}</span><button type="button" className="xp-link-button" onClick={() => removeSelected(item.id)}>×</button></div>)}</div>}</>}
+        <div className="row-gap" style={{ marginTop: 8 }}><input className="xp-text-input" placeholder="Project (e.g. Gym, Thesis)" value={newTaskProject} onChange={(e) => setNewTaskProject(e.target.value)} style={{ flex: 1 }} disabled={running || timer.paused} /><input className="xp-text-input" placeholder="Task name" value={newTaskName} onChange={(e) => setNewTaskName(e.target.value)} style={{ flex: 1 }} disabled={running || timer.paused} /><XPButton small disabled={running || timer.paused} onClick={() => { if (!newTaskName.trim()) return; const t = { id: "T" + Date.now(), project: newTaskProject.trim() || "General", name: newTaskName.trim(), createdAt: new Date().toISOString() }; addTask(t); const item = { id: "task:" + t.id, label: t.name, groupLabel: t.project, stage: "", planId: "", lectureId: "", source: "Task" }; if (multiSelect) setSelectedItems((prev) => [...prev, item]); else timerActions.link(item.id); setNewTaskName(""); }}><Plus size={12} /></XPButton></div>
+        <div className="xp-small-text" style={{ marginTop: 4, opacity: 0.7 }}>{running || timer.paused ? "Locked while this round is active — reset to change it." : multiSelect ? "Multi-select is ON: add as many lectures/tasks as you need." : "Not tied to Sem 10 — use this for anything: gym, other courses, side projects."}</div>
+      </XPGroupBox>
+      <XPGroupBox title="Settings" style={{ marginTop: 10 }}><div className="settings-grid"><label className="xp-small-text">Pomodoro (min)<input type="number" className="xp-number" value={settings.pomodoroMin} min={1} max={90} onChange={(e) => setSettings((s) => ({ ...s, pomodoroMin: +e.target.value || 1 }))} /></label><label className="xp-small-text">Short break (min)<input type="number" className="xp-number" value={settings.shortMin} min={1} max={60} onChange={(e) => setSettings((s) => ({ ...s, shortMin: +e.target.value || 1 }))} /></label><label className="xp-small-text">Long break (min)<input type="number" className="xp-number" value={settings.longMin} min={1} max={60} onChange={(e) => setSettings((s) => ({ ...s, longMin: +e.target.value || 1 }))} /></label><label className="xp-small-text">Long break every<input type="number" className="xp-number" value={settings.longBreakEvery} min={2} max={12} onChange={(e) => setSettings((s) => ({ ...s, longBreakEvery: +e.target.value || 2 }))} /></label><label className="xp-checkbox-row" style={{ marginTop: 4 }}><XPCheckbox checked={settings.autoStartBreaks} onChange={() => setSettings((s) => ({ ...s, autoStartBreaks: !s.autoStartBreaks }))} /><span className="xp-checkbox-label" style={{ marginLeft: 6 }}>Auto-start breaks</span></label><label className="xp-checkbox-row" style={{ marginTop: 4 }}><XPCheckbox checked={settings.autoStartPomodoros} onChange={() => setSettings((s) => ({ ...s, autoStartPomodoros: !s.autoStartPomodoros }))} /><span className="xp-checkbox-label" style={{ marginLeft: 6 }}>Auto-start pomodoros</span></label></div></XPGroupBox>
+      <div className="xp-small-text" style={{ marginTop: 8, opacity: 0.65, textAlign: "center" }}>Keeps running if you switch to another window or minimize this one.</div>
+    </div>
+  );
+}
+
+'''
+          text = text[:start] + timer + text[end:]
+          text = text.replace('/* ============================================================================\n   TIMER APP', '/* ============================================================================\n   TIMER APP\n   ' + marker, 1)
+          path.write_text(text, encoding='utf-8')
+          print('Pomodoro patch applied')
+
+      - name: Commit Pomodoro patch
+        if: github.ref_name == 'pomodoro-multi-task'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/App.jsx
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Implement Pomodoro multi-task selection [skip ci]"
+          git push
 
       - name: Setup Node
         uses: actions/setup-node@v4
