@@ -1021,12 +1021,10 @@ function LoginScreen({ onLogin }) {
 function BootScreen({ text }) {
   return (
     <div className="xp-boot">
-      <div className="xp-boot-brand" aria-label="SEM 10-XP Study Planner">
-        <div className="xp-boot-mark" aria-hidden="true"><i /><i /><i /><i /></div>
-        <div className="xp-boot-product"><span className="xp-boot-product-small">SEM 10</span><span className="xp-boot-product-main">Study Planner</span><b>XP</b></div>
-      </div>
+      <div className="xp-boot-logo"><span style={{ background: "#e8412c" }} /><span style={{ background: "#7cb928" }} /><span style={{ background: "#2b8ee8" }} /><span style={{ background: "#f0b429" }} /></div>
+      <div className="xp-boot-title">SEM 10-XP</div>
       <div className="xp-boot-subtitle">by Amro Adel</div>
-      <div className="xp-boot-barwrap" aria-label="Loading"><div className="xp-boot-bar"><i /><i /><i /></div></div>
+      <div className="xp-boot-barwrap"><div className="xp-boot-bar" /></div>
       <div className="xp-boot-text">{text}</div>
     </div>
   );
@@ -1325,23 +1323,17 @@ const CSS = `
     background-image: var(--wallpaper); background-size: cover; background-position: center;
     user-select: none;
   }
-  .xp-boot { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; background:#000; color:#fff; gap:15px; overflow:hidden; }
-  .xp-boot-brand { display:flex; align-items:flex-end; gap:13px; margin-top:-20px; filter:drop-shadow(0 2px 5px rgba(255,255,255,0.08)); }
-  .xp-boot-mark { width:92px; height:76px; display:grid; grid-template-columns:1fr 1fr; gap:4px; transform:skewY(-7deg) rotate(-4deg); }
-  .xp-boot-mark i { display:block; border-radius:4px 12px 4px 12px; box-shadow:inset 2px 2px 4px rgba(255,255,255,.36), inset -3px -3px 5px rgba(0,0,0,.22); animation:xp-mark-glow 2s ease-in-out infinite; }
-  .xp-boot-mark i:nth-child(1){ background:linear-gradient(135deg,#ff9d4a,#bc3c08); } .xp-boot-mark i:nth-child(2){ background:linear-gradient(135deg,#b5ed55,#51a509); animation-delay:.18s; }
-  .xp-boot-mark i:nth-child(3){ background:linear-gradient(135deg,#6a83ff,#183eb9); animation-delay:.36s; } .xp-boot-mark i:nth-child(4){ background:linear-gradient(135deg,#ffe46d,#d69a00); animation-delay:.54s; }
-  @keyframes xp-mark-glow { 0%,100%{ filter:brightness(.92); } 50%{ filter:brightness(1.12); } }
-  .xp-boot-product { position:relative; padding-bottom:2px; min-width:238px; line-height:.9; letter-spacing:-1px; }
-  .xp-boot-product-small { display:block; font-size:17px; font-weight:bold; letter-spacing:.1px; margin-bottom:4px; }
-  .xp-boot-product-main { display:block; font-size:34px; font-weight:bold; letter-spacing:-1.7px; white-space:nowrap; }
-  .xp-boot-product b { position:absolute; right:-2px; bottom:0; color:#ed6b18; font-size:31px; letter-spacing:-2px; font-weight:normal; transform:translateX(100%); }
-  .xp-boot-subtitle { color:#aab8cf; font-size:11px; margin-top:-7px; letter-spacing:.4px; }
-  .xp-boot-barwrap { width:204px; height:18px; padding:2px; border:2px solid #a6a6a6; border-radius:7px; overflow:hidden; background:#070707; box-shadow:inset 0 0 0 1px #333; margin-top:13px; }
-  .xp-boot-bar { width:66px; height:100%; display:flex; gap:2px; animation:xp-slide 1.35s linear infinite; }
-  .xp-boot-bar i { flex:1; border-radius:1px; background:linear-gradient(180deg,#728cff,#263ed6); box-shadow:0 0 4px #466cff; }
-  @keyframes xp-slide { 0%{ transform:translateX(-70px); } 100%{ transform:translateX(205px); } }
-  .xp-boot-text { color:#9ba8bb; font-size:11px; min-height:13px; }
+  .xp-boot { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; background:#000; gap:14px; }
+  .xp-boot-logo { display:flex; gap:4px; }
+  .xp-boot-logo span { width:22px; height:22px; border-radius:3px; display:inline-block; animation: xp-pulse 1.2s ease-in-out infinite; }
+  .xp-boot-logo span:nth-child(2){ animation-delay:0.15s;} .xp-boot-logo span:nth-child(3){ animation-delay:0.3s;} .xp-boot-logo span:nth-child(4){ animation-delay:0.45s;}
+  @keyframes xp-pulse { 0%,100%{ opacity:0.4; transform:scale(0.9);} 50%{ opacity:1; transform:scale(1);} }
+  .xp-boot-title { color:#fff; font-size:15px; letter-spacing:0.5px; }
+  .xp-boot-subtitle { color:#9fb8e8; font-size:11px; margin-top:-8px; }
+  .xp-boot-barwrap { width:220px; height:14px; border:1px solid #3355aa; border-radius:2px; overflow:hidden; background:#0a0a2a; }
+  .xp-boot-bar { width:40%; height:100%; background: linear-gradient(90deg,#1a56d6,#5a9bff); animation: xp-slide 1.1s ease-in-out infinite; }
+  @keyframes xp-slide { 0%{ margin-left:-40%;} 100%{ margin-left:100%;} }
+  .xp-boot-text { color:#9fb8e8; font-size:11.5px; }
 
   .desktop-icons { position: absolute; top: 14px; left: 10px; display: flex; flex-direction: column; flex-wrap: wrap; gap: 14px; max-height: calc(100vh - 34px - 28px); z-index: 1; }
   .desktop-icon { width: 84px; display:flex; flex-direction:column; align-items:center; padding:6px 2px; border-radius:3px; cursor:pointer; }
