@@ -1,5 +1,6 @@
 import "./audio-unlock.js";
 import "./mobile-task-search.js";
+import "./mobile-ui-fixes.js";
 import "./tracker-sort-filter.js";
 import "./tracker-bulk-actions.js";
 import "./tracker-progress-exclusion.js";
