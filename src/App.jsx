@@ -1063,7 +1063,7 @@ function Sem10XPApp() {
   const addTask = (t) => setTasks((prev) => [...prev, t]);
 
   /* ---- Timer engine, lives here so it survives minimizing/switching windows ---- */
-  const [timer, setTimer] = useState({ mode: "pomodoro", running: false, paused: false, endsAt: null, remaining: 25 * 60, linkedId: "", linkedLabel: "", linkedGroup: "", linkedStage: "", linkedPlanId: "", linkedLectureId: "", soundEnabled: true });
+  const [timer, setTimer] = useState({ mode: "pomodoro", running: false, paused: false, endsAt: null, remaining: 25 * 60, linkedId: "", linkedLabel: "", linkedGroup: "", linkedStage: "", linkedPlanId: "", linkedLectureId: "", linkedItems: [], soundEnabled: true });
   const [tick, setTick] = useState(0);
   // Keyed to the specific endsAt already completed (not a boolean+timeout), so a
   // tick and a visibilitychange firing for the same expiry can never double-complete it.
@@ -1087,38 +1087,22 @@ function Sem10XPApp() {
   const secondsLeft = timer.running && timer.endsAt ? Math.max(0, Math.round((timer.endsAt - Date.now()) / 1000)) : timer.remaining;
 
   const runCompletion = useCallback(() => {
-    const finished = activeSessionRef.current || { mode: timer.mode, linkedLabel: "", linkedGroup: "", linkedStage: "", linkedPlanId: "", linkedLectureId: "" };
+    const finished = activeSessionRef.current || { mode: timer.mode, linkedLabel: "", linkedGroup: "", linkedStage: "", linkedPlanId: "", linkedLectureId: "", linkedItems: [] };
     playChime("notify", timer.soundEnabled);
     if (finished.mode === "pomodoro") {
-      addSession({
-        id: "S" + Date.now(), ts: new Date().toISOString(), durationMin: settings.pomodoroMin,
-        label: finished.linkedLabel || "Freeform", groupLabel: finished.linkedGroup || "Freeform",
-        lectureId: finished.linkedLectureId || null,
-        stage: finished.linkedStage || null, planId: finished.linkedPlanId || null,
-      });
-      if (finished.linkedPlanId) setPlan((prev) => prev.map((p) => (p.id === finished.linkedPlanId ? { ...p, completedPoms: (p.completedPoms || 0) + 1 } : p)));
-      notify("Pomodoro complete", finished.linkedLabel ? "Nice work on: " + finished.linkedLabel : "Time for a break.");
+      const items = Array.isArray(finished.linkedItems) && finished.linkedItems.length ? finished.linkedItems : (finished.linkedId ? [{ id: finished.linkedId, label: finished.linkedLabel, groupLabel: finished.linkedGroup, stage: finished.linkedStage, planId: finished.linkedPlanId, lectureId: finished.linkedLectureId }] : []);
+      const labels = items.map((x) => x.label).filter(Boolean);
+      const groups = Array.from(new Set(items.map((x) => x.groupLabel).filter(Boolean)));
+      addSession({ id: "S" + Date.now(), ts: new Date().toISOString(), durationMin: settings.pomodoroMin, label: labels.length ? labels.join(" + ") : "Freeform", groupLabel: groups.length ? groups.join(" + ") : "Freeform", lectureId: items[0]?.lectureId || null, stage: items[0]?.stage || null, planId: items[0]?.planId || null, linkedItems: items.map((x) => ({ id: x.id, label: x.label, groupLabel: x.groupLabel, stage: x.stage || null, planId: x.planId || null, lectureId: x.lectureId || null })) });
+      const planIds = items.map((x) => x.planId).filter(Boolean);
+      if (planIds.length) setPlan((prev) => prev.map((p) => planIds.includes(p.id) ? { ...p, completedPoms: (p.completedPoms || 0) + 1 } : p));
+      notify("Pomodoro complete", labels.length ? "Nice work on: " + labels.join(", ") : "Time for a break.");
       pomosThisSet.current += 1;
-    } else {
-      notify("Break's over", "Back to it when you're ready.");
-    }
-
+    } else notify("Break's over", "Back to it when you're ready.");
     const nextMode = timer.mode === "pomodoro" ? (pomosThisSet.current % settings.longBreakEvery === 0 ? "long" : "short") : "pomodoro";
     const willAuto = nextMode === "pomodoro" ? settings.autoStartPomodoros : settings.autoStartBreaks;
-    activeSessionRef.current = willAuto
-      ? { mode: nextMode, linkedId: timer.linkedId, linkedLabel: timer.linkedLabel, linkedGroup: timer.linkedGroup, linkedStage: timer.linkedStage, linkedPlanId: timer.linkedPlanId, linkedLectureId: timer.linkedLectureId }
-      : null;
-
-    setTimer((t) => ({
-      // NOTE: durFor() returns seconds; the previous version added it to Date.now()
-      // (milliseconds) with no *1000, so an auto-continued round re-expired ~durFor()
-      // milliseconds later instead of durFor() *seconds* later - i.e. instantly - which
-      // is what produced the reported 0:00 pomodoro/break oscillation.
-      ...t, mode: nextMode, running: willAuto, paused: false,
-      endsAt: willAuto ? Date.now() + durFor(nextMode) * 1000 : null,
-      remaining: durFor(nextMode),
-    }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    activeSessionRef.current = willAuto ? { mode: nextMode, linkedId: timer.linkedId, linkedLabel: timer.linkedLabel, linkedGroup: timer.linkedGroup, linkedStage: timer.linkedStage, linkedPlanId: timer.linkedPlanId, linkedLectureId: timer.linkedLectureId, linkedItems: timer.linkedItems || [] } : null;
+    setTimer((t) => ({ ...t, mode: nextMode, running: willAuto, paused: false, endsAt: willAuto ? Date.now() + durFor(nextMode) * 1000 : null, remaining: durFor(nextMode) }));
   }, [timer, settings, durFor, plan]);
 
   const completeSession = useCallback((forEndsAt) => {
@@ -1191,6 +1175,12 @@ function Sem10XPApp() {
         return { ...t, linkedId: val, linkedLabel: label, linkedGroup: lec ? lec.section : entry.discipline, linkedStage: entry.stage || "", linkedPlanId: entry.id, linkedLectureId: entry.lectureId || "" };
       }
       return t;
+    }),
+    linkMany: (items) => setTimer((t) => {
+      if (t.running || t.paused) return t;
+      const safe = Array.isArray(items) ? items.filter(Boolean) : [];
+      if (!safe.length) return { ...t, linkedId: "", linkedLabel: "", linkedGroup: "", linkedStage: "", linkedPlanId: "", linkedLectureId: "", linkedItems: [] };
+      return { ...t, linkedId: safe[0].id, linkedLabel: safe.length === 1 ? safe[0].label : safe.length + " tasks selected", linkedGroup: Array.from(new Set(safe.map((x) => x.groupLabel).filter(Boolean))).join(" + "), linkedStage: safe[0].stage || "", linkedPlanId: safe.length === 1 ? (safe[0].planId || "") : "", linkedLectureId: safe.length === 1 ? (safe[0].lectureId || "") : "", linkedItems: safe };
     }),
   };
 
@@ -1573,3 +1563,5 @@ const CSS = `
     .login-bottomtext { text-align:left; max-width:none; }
   }
 `;
+
+// POMODORO_MULTI_TASK_V2
