@@ -9,6 +9,15 @@
 
   const ACADEMIC_KEYS = ["explain", "study", "solve", "review"];
   const progressKey = "sem10xp:lecture-progress-v2";
+  // LECTURES is generated in App.jsx in this fixed order: all Surgery lectures,
+  // then all Medicine lectures. The current dataset is 77 Surgery + 91 Medicine.
+  // Using the stable ID ranges means the correction still works when only ONE
+  // Tracker window is open; the previous implementation depended on the other
+  // Tracker window also being mounted to discover the boundary.
+  const DISCIPLINE_RANGES = {
+    Surgery: [1, 77],
+    Medicine: [78, 168],
+  };
   let rebuildTimer = null;
 
   const schedule = (fn, delay = 40) => {
@@ -26,11 +35,6 @@
   function trackerWindows() {
     return Array.from(document.querySelectorAll(".xp-window"))
       .filter((win) => win.querySelector(".tracker-hero-sub"));
-  }
-
-  function rows(win) {
-    return Array.from(win.querySelectorAll("table.lecture-table tbody tr"))
-      .filter((r) => r.querySelector("td.lecture-name-cell"));
   }
 
   function headerSections(win) {
@@ -51,37 +55,21 @@
     }).filter((x) => x.discipline);
   }
 
-  // LECTURES is constructed in App.jsx with Surgery first and Medicine second.
-  // Derive the boundary from the rendered section counts instead of hardcoding
-  // lecture totals, so the calculation stays tied to the actual Tracker data.
-  function disciplineForId(id, infos) {
+  function disciplineForId(id) {
     const n = parseInt(String(id).replace(/^L/, ""), 10);
     if (!Number.isFinite(n)) return "";
-    const surgery = infos.find((x) => x.discipline === "Surgery");
-    const medicine = infos.find((x) => x.discipline === "Medicine");
-    const surgeryTotal = surgery?.total || 0;
-    if (surgery && n >= 1 && n <= surgeryTotal) return "Surgery";
-    if (medicine && n > surgeryTotal && n <= surgeryTotal + medicine.total) return "Medicine";
+    for (const [discipline, [first, last]] of Object.entries(DISCIPLINE_RANGES)) {
+      if (n >= first && n <= last) return discipline;
+    }
     return "";
   }
 
-  function countRowAcademicDone(row) {
-    const checks = Array.from(row.querySelectorAll("td.checkbox-cell .xp-checkbox"));
-    let done = 0;
-    for (let i = 1; i < 5; i += 1) {
-      if (checks[i]?.classList.contains("xp-checkbox-checked")) done += 1;
-    }
-    return done;
-  }
-
-  function academicDoneForDiscipline(discipline, infos) {
+  function academicDoneForDiscipline(discipline) {
     const progress = readProgress();
-    const info = infos.find((x) => x.discipline === discipline);
-    if (!info) return 0;
     let done = 0;
     Object.entries(progress).forEach(([id, cell]) => {
       if (!cell || typeof cell !== "object") return;
-      if (disciplineForId(id, infos) !== discipline) return;
+      if (disciplineForId(id) !== discipline) return;
       done += ACADEMIC_KEYS.filter((key) => !!cell[key]).length;
     });
     return done;
@@ -96,7 +84,7 @@
   function updateTracker(win, infos) {
     const info = infos.find((x) => x.win === win);
     if (!info || !info.total) return;
-    const done = academicDoneForDiscipline(info.discipline, infos);
+    const done = academicDoneForDiscipline(info.discipline);
     const denominator = info.total * ACADEMIC_KEYS.length;
     const pct = Math.round((done / denominator) * 100);
 
@@ -109,11 +97,11 @@
 
   function updateOverview(infos) {
     const progress = readProgress();
-    const totalLectures = infos.reduce((sum, x) => sum + x.total, 0);
+    const totalLectures = Object.values(DISCIPLINE_RANGES).reduce((sum, [first, last]) => sum + (last - first + 1), 0);
     if (!totalLectures) return;
     const done = Object.entries(progress).reduce((sum, [id, cell]) => {
       if (!cell || typeof cell !== "object") return sum;
-      if (!disciplineForId(id, infos)) return sum;
+      if (!disciplineForId(id)) return sum;
       return sum + ACADEMIC_KEYS.filter((key) => !!cell[key]).length;
     }, 0);
     const denominator = totalLectures * ACADEMIC_KEYS.length;
