@@ -17,6 +17,30 @@ const projectSoundPaths = {
     const soundBase = `${BASE_PATH}sounds/`;
     let transformed = code.replaceAll('"/sounds/', `"${soundBase}`);
 
+    // ورق is still a visible/checkable tracker stage, but it is not an
+    // academic-progress stage. Keep the full STAGES list for the UI and use
+    // ACADEMIC_STAGES only for progress/status calculations.
+    transformed = transformed.replace(
+      'const STAGES = [{ key: "paper", label: "ورق" }, { key: "explain", label: "شرح" }, { key: "study", label: "مذاكرة" }, { key: "solve", label: "حل" }, { key: "review", label: "مراجعة" }];',
+      'const STAGES = [{ key: "paper", label: "ورق" }, { key: "explain", label: "شرح" }, { key: "study", label: "مذاكرة" }, { key: "solve", label: "حل" }, { key: "review", label: "مراجعة" }];\nconst ACADEMIC_STAGES = STAGES.filter((s) => s.key !== "paper");'
+    );
+    transformed = transformed.replace(
+      'const doneCount = (id) => STAGES.filter((s) => cell(id)[s.key]).length;',
+      'const doneCount = (id) => ACADEMIC_STAGES.filter((s) => cell(id)[s.key]).length;'
+    );
+    transformed = transformed.replace(
+      'const doneCount = (id) => STAGES.filter((s) => isDone(id, s.key)).length;',
+      'const doneCount = (id) => ACADEMIC_STAGES.filter((s) => isDone(id, s.key)).length;'
+    );
+    transformed = transformed.replace(
+      'doneCount(l.id) === STAGES.length',
+      'doneCount(l.id) === ACADEMIC_STAGES.length'
+    );
+    transformed = transformed.replace(
+      'const totalCells = disciplineLectures.length * STAGES.length;',
+      'const totalCells = disciplineLectures.length * ACADEMIC_STAGES.length;'
+    );
+
     // The XP startup sound belongs to the desktop transition, not the initial
     // black boot screen. Move that one call from component mount to the moment
     // the desktop is actually ready (after login + loading).
