@@ -33,6 +33,14 @@
       .planner-empty { padding: 3px 0; }
       .xp-select, .xp-text-input, .xp-number { min-height: 36px; }
       .xp-btn, .xp-capbtn, .start-btn, .taskbar-item { touch-action: manipulation; }
+
+      /* Pomodoro: selected tasks must stay inside the existing XP window. */
+      .timer-app { min-width: 0 !important; width: 100% !important; max-width: 100% !important; box-sizing: border-box; overflow-x: hidden; }
+      .timer-app .timer-linked-label { max-width: 100%; min-width: 0; box-sizing: border-box; white-space: normal !important; overflow-wrap: anywhere; word-break: break-word; line-height: 1.25; }
+      .timer-app .xp-groupbox, .timer-app .xp-group-box { min-width: 0; max-width: 100%; box-sizing: border-box; }
+      .timer-app .xp-text-input, .timer-app .xp-select { min-width: 0 !important; max-width: 100%; box-sizing: border-box; }
+      .timer-app .row-gap { min-width: 0; max-width: 100%; flex-wrap: wrap; }
+      .timer-app .row-gap > .xp-btn { flex: 0 0 auto; }
     }
   `;
   document.head.appendChild(style);
