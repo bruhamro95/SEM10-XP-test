@@ -1,0 +1,6 @@
+/* Keep XP windows inside the usable desktop area above the taskbar. */
+(function installTaskbarBoundary(){
+ const MIN_VISIBLE_TITLEBAR=48;
+ function clamp(){const taskbar=document.querySelector('.taskbar');if(!taskbar)return;const bottom=Math.max(0,taskbar.getBoundingClientRect().top),vw=innerWidth;document.querySelectorAll('.xp-window').forEach(el=>{if(getComputedStyle(el).display==='none')return;const r=el.getBoundingClientRect();let left=parseFloat(el.style.left)||0,top=parseFloat(el.style.top)||0,width=r.width,height=r.height;if(height<=bottom)top=Math.min(Math.max(0,top),bottom-height);else{top=Math.min(Math.max(0,top),bottom-MIN_VISIBLE_TITLEBAR);height=Math.max(160,bottom-top);el.style.height=Math.round(height)+'px'}left=Math.min(left,vw-MIN_VISIBLE_TITLEBAR);left=Math.max(-(width-MIN_VISIBLE_TITLEBAR),left);el.style.top=Math.round(top)+'px';el.style.left=Math.round(left)+'px';if(el.style.zIndex&&Number(el.style.zIndex)>=1000)el.style.zIndex='999'})}
+ const schedule=()=>requestAnimationFrame(clamp);addEventListener('resize',schedule);addEventListener('orientationchange',schedule);addEventListener('load',schedule);new MutationObserver(schedule).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['style','class']});setTimeout(schedule,0);setTimeout(schedule,250);
+})();
