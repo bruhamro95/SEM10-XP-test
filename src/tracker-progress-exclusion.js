@@ -9,7 +9,6 @@
 
   const ACADEMIC_KEYS = ["explain", "study", "solve", "review"];
   const progressKey = "sem10xp:lecture-progress-v2";
-  let lectureMeta = new Map();
   let rebuildTimer = null;
 
   const schedule = (fn, delay = 40) => {
@@ -37,104 +36,88 @@
   function headerSections(win) {
     return Array.from(win.querySelectorAll(".section-header"))
       .map((h) => ({
-        header: h,
         name: h.querySelector(".section-title")?.textContent.trim() || "",
-        count: parseInt(h.querySelector(".section-count")?.textContent || "", 10) || 0,
-        open: h.querySelector(".section-caret")?.textContent.trim() === "▾"
+        count: parseInt(h.querySelector(".section-count")?.textContent || "", 10) || 0
       }))
       .filter((x) => x.name);
   }
 
-  function rememberVisibleRows() {
-    trackerWindows().forEach((win) => {
+  function trackerInfo() {
+    return trackerWindows().map((win) => {
       const title = win.querySelector(".xp-titlebar-text")?.textContent || "";
       const discipline = /medicine/i.test(title) ? "Medicine" : /surgery/i.test(title) ? "Surgery" : "";
-      rows(win).forEach((r) => {
-        const name = r.querySelector(".lecture-name-cell")?.textContent.trim();
-        const cells = Array.from(r.querySelectorAll("td"));
-        const section = cells[2]?.textContent.trim() || "";
-        const num = cells[0]?.textContent.trim() || "";
-        if (discipline && num) lectureMeta.set(`${discipline}|${num}`, { discipline, num, section });
-        if (discipline && name) {
-          // Keep a name key too; it survives changes in table numbering.
-          lectureMeta.set(`${discipline}|${name}`, { discipline, num, section });
-        }
-      });
-    });
+      const total = headerSections(win).reduce((sum, s) => sum + s.count, 0);
+      return { win, discipline, total };
+    }).filter((x) => x.discipline);
   }
 
-  function countFromRows(list) {
+  // LECTURES is constructed in App.jsx with Surgery first and Medicine second.
+  // Derive the boundary from the rendered section counts instead of hardcoding
+  // lecture totals, so the calculation stays tied to the actual Tracker data.
+  function disciplineForId(id, infos) {
+    const n = parseInt(String(id).replace(/^L/, ""), 10);
+    if (!Number.isFinite(n)) return "";
+    const surgery = infos.find((x) => x.discipline === "Surgery");
+    const medicine = infos.find((x) => x.discipline === "Medicine");
+    const surgeryTotal = surgery?.total || 0;
+    if (surgery && n >= 1 && n <= surgeryTotal) return "Surgery";
+    if (medicine && n > surgeryTotal && n <= surgeryTotal + medicine.total) return "Medicine";
+    return "";
+  }
+
+  function countRowAcademicDone(row) {
+    const checks = Array.from(row.querySelectorAll("td.checkbox-cell .xp-checkbox"));
     let done = 0;
-    list.forEach((row) => {
-      const checks = Array.from(row.querySelectorAll("td.checkbox-cell .xp-checkbox"));
-      ACADEMIC_KEYS.forEach((_, i) => {
-        if (checks[i + 1]?.classList.contains("xp-checkbox-checked")) done += 1;
-      });
+    for (let i = 1; i < 5; i += 1) {
+      if (checks[i]?.classList.contains("xp-checkbox-checked")) done += 1;
+    }
+    return done;
+  }
+
+  function academicDoneForDiscipline(discipline, infos) {
+    const progress = readProgress();
+    const info = infos.find((x) => x.discipline === discipline);
+    if (!info) return 0;
+    let done = 0;
+    Object.entries(progress).forEach(([id, cell]) => {
+      if (!cell || typeof cell !== "object") return;
+      if (disciplineForId(id, infos) !== discipline) return;
+      done += ACADEMIC_KEYS.filter((key) => !!cell[key]).length;
     });
     return done;
   }
 
-  function totalFromHeaders(win) {
-    return headerSections(win).reduce((sum, s) => sum + s.count, 0);
+  function paint(progressEl, pct) {
+    const segs = Array.from(progressEl.querySelectorAll(".xp-progress-seg"));
+    const filled = Math.round((Math.max(0, Math.min(100, pct)) / 100) * segs.length);
+    segs.forEach((seg, i) => seg.classList.toggle("xp-progress-seg-on", i < filled));
   }
 
-  function updateTracker(win) {
-    const sections = headerSections(win);
-    const totalLectures = totalFromHeaders(win);
-    const visibleRows = rows(win);
-    const visibleDone = countFromRows(visibleRows);
-
-    // When sections are collapsed, React removes their rows. We therefore use
-    // the persisted progress object for the hidden portion when we have learned
-    // its lecture metadata from an earlier expanded render.
-    const progress = readProgress();
-    const title = win.querySelector(".xp-titlebar-text")?.textContent || "";
-    const discipline = /medicine/i.test(title) ? "Medicine" : /surgery/i.test(title) ? "Surgery" : "";
-    let done = visibleDone;
-    const visibleKeys = new Set();
-    visibleRows.forEach((r) => {
-      const num = r.querySelector(".num-col")?.textContent.trim();
-      const name = r.querySelector(".lecture-name-cell")?.textContent.trim();
-      if (num) visibleKeys.add(`${discipline}|${num}`);
-      if (name) visibleKeys.add(`${discipline}|${name}`);
-    });
-
-    Object.entries(progress).forEach(([id, cell]) => {
-      if (!cell || typeof cell !== "object") return;
-      const meta = lectureMeta.get(id);
-      if (!meta || meta.discipline !== discipline) return;
-      if (visibleKeys.has(`${discipline}|${meta.num}`) || visibleKeys.has(`${discipline}|${meta.name}`)) return;
-      done += ACADEMIC_KEYS.filter((k) => !!cell[k]).length;
-    });
-
-    // If metadata is not available yet, expand/collapse synchronization below
-    // will populate it and the next refresh becomes exact.
-    const denominator = totalLectures * ACADEMIC_KEYS.length;
-    const pct = denominator ? Math.round((done / denominator) * 100) : 0;
+  function updateTracker(win, infos) {
+    const info = infos.find((x) => x.win === win);
+    if (!info || !info.total) return;
+    const done = academicDoneForDiscipline(info.discipline, infos);
+    const denominator = info.total * ACADEMIC_KEYS.length;
+    const pct = Math.round((done / denominator) * 100);
 
     const text = Array.from(win.querySelectorAll(".xp-small-text"))
       .find((el) => /%\s*complete$/i.test(el.textContent.trim()));
     if (text) text.textContent = `${pct}% complete`;
-    const progressEl = win.querySelector(":scope > .xp-window-body .xp-progress, .tracker-hero .xp-progress");
-    if (progressEl) {
-      const segs = Array.from(progressEl.querySelectorAll(".xp-progress-seg"));
-      const filled = Math.round((pct / 100) * segs.length);
-      segs.forEach((s, i) => s.classList.toggle("xp-progress-seg-on", i < filled));
-    }
+    const progressEl = win.querySelector(".tracker-hero .xp-progress");
+    if (progressEl) paint(progressEl, pct);
   }
 
-  function updateOverview() {
+  function updateOverview(infos) {
     const progress = readProgress();
-    const allWindows = trackerWindows();
-    const totalLectures = allWindows.reduce((sum, win) => sum + totalFromHeaders(win), 0);
+    const totalLectures = infos.reduce((sum, x) => sum + x.total, 0);
     if (!totalLectures) return;
-
-    let done = 0;
-    Object.values(progress).forEach((cell) => {
-      if (cell && typeof cell === "object") done += ACADEMIC_KEYS.filter((k) => !!cell[k]).length;
-    });
+    const done = Object.entries(progress).reduce((sum, [id, cell]) => {
+      if (!cell || typeof cell !== "object") return sum;
+      if (!disciplineForId(id, infos)) return sum;
+      return sum + ACADEMIC_KEYS.filter((key) => !!cell[key]).length;
+    }, 0);
     const denominator = totalLectures * ACADEMIC_KEYS.length;
-    const pct = denominator ? Math.round((done / denominator) * 100) : 0;
+    const pct = Math.round((done / denominator) * 100);
 
     document.querySelectorAll(".xp-window").forEach((win) => {
       if (win.querySelector(".tracker-hero-sub")) return;
@@ -149,14 +132,21 @@
   }
 
   function refresh() {
-    rememberVisibleRows();
-    trackerWindows().forEach(updateTracker);
-    updateOverview();
+    const infos = trackerInfo();
+    if (!infos.length) return;
+    infos.forEach(({ win }) => updateTracker(win, infos));
+    updateOverview(infos);
   }
 
-  // Build metadata whenever rows become available. This lets collapsed sections
-  // remain collapsed while progress is still calculated from all lectures.
   const observer = new MutationObserver(() => schedule(refresh));
-  observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["class"]
+  });
+  window.addEventListener("storage", (e) => {
+    if (e.key === progressKey) schedule(refresh, 0);
+  });
   refresh();
 })();
