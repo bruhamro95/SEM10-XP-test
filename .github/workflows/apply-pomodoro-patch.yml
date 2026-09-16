@@ -1,0 +1,37 @@
+name: Apply Pomodoro patch
+
+on:
+  push:
+    branches:
+      - pomodoro-multi-task-v2
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Apply targeted App.jsx patch
+        run: python scripts/apply-pomodoro-multitask.py
+
+      - name: Commit patched App.jsx
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/App.jsx
+          git diff --cached --quiet && exit 0
+          git commit -m "Implement Pomodoro multi-task links [skip ci]"
+          git push origin HEAD:pomodoro-multi-task-v2
