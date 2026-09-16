@@ -1260,7 +1260,7 @@ function Sem10XPApp() {
     setWindows((ws) => ws.map((w) => (w.id === id ? { ...w, z } : w)));
     setFocusedId(id);
   };
-  const startPomForEntry = (entry) => { timerActions.link("plan:" + entry.id); timerActions.setMode("pomodoro"); openApp("timer"); };
+  const startPomForEntry = (entry) => { timerActions.setMode("pomodoro"); timerActions.link("plan:" + entry.id); openApp("timer"); };
 
   const renderAppBody = (id) => {
     if (id === "computer") return <OverviewApp progress={progress} openApp={openApp} allData={{ progress, sessions, tasks, plan, exams, settings }} setAllData={{ setProgress, setSessions, setTasks, setPlan, setExams, setSettings }} />;
