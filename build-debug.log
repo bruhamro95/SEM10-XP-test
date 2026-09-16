@@ -14,7 +14,7 @@ computing gzip size...
 [2mdist/[22m[2massets/[22m[32mapple-touch-icon-D8JUJicQ.png  [39m[1m[2m  1.31 kB[22m[1m[22m
 [2mdist/[22m[32mindex.html                            [39m[1m[2m  1.40 kB[22m[1m[22m[2m │ gzip:   0.68 kB[22m
 [2mdist/[22m[2massets/[22m[36mindex-AB3CR_oV.js              [39m[1m[2m400.67 kB[22m[1m[22m[2m │ gzip: 181.75 kB[22m
-[32m✓ built in 1.30s[39m
+[32m✓ built in 2.38s[39m
 
 [36mPWA v0.20.5[39m
 mode      [35mgenerateSW[39m
