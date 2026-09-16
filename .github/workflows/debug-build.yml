@@ -1,0 +1,34 @@
+name: Temporary build diagnostic
+
+on:
+  push:
+    branches:
+      - pomodoro-multi-task-v2
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Capture build output
+        run: |
+          npm ci > /tmp/npm-ci.log 2>&1 || true
+          npm run build > build-debug.log 2>&1 || true
+          cat build-debug.log
+      - name: Save diagnostic
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add build-debug.log
+          git diff --cached --quiet && exit 0
+          git commit -m "Build diagnostic output [skip ci]"
+          git push origin HEAD:pomodoro-multi-task-v2
