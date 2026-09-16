@@ -34,6 +34,40 @@
       .xp-select, .xp-text-input, .xp-number { min-height: 36px; }
       .xp-btn, .xp-capbtn, .start-btn, .taskbar-item { touch-action: manipulation; }
     }
+    @media (max-width: 600px) {
+      .tracker-app, .tracker-scroll, .tracker-hero, .toolbar { min-width: 0; max-width: 100%; box-sizing: border-box; }
+      .tracker-app, .tracker-scroll { overflow-x: hidden; }
+      .toolbar { width: 100%; flex-wrap: wrap; gap: 7px; }
+      .toolbar > *, .toolbar .xp-search, .toolbar .row-gap { min-width: 0; max-width: 100%; }
+      .toolbar .xp-search { width: 100%; flex: 1 1 100%; box-sizing: border-box; }
+      .toolbar .xp-search-input { width: 100%; min-width: 0; box-sizing: border-box; }
+      .toolbar .row-gap { width: 100%; flex-wrap: wrap; }
+      .toolbar .row-gap .xp-btn { flex: 1 1 auto; min-width: 0; }
+      .stat-row { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; width: 100%; min-width: 0; box-sizing: border-box; }
+      .stat-card { min-width: 0; box-sizing: border-box; overflow: hidden; }
+      .lecture-table { width: 100%; min-width: 0 !important; table-layout: auto; display: block; }
+      .lecture-table thead { display: none; }
+      .lecture-table tbody { display: block; width: 100%; min-width: 0; }
+      .lecture-table tr { display: block; width: 100%; min-width: 0; box-sizing: border-box; margin-bottom: 6px; padding: 5px 4px; }
+      .lecture-table td { box-sizing: border-box; }
+      .lecture-table td.lecture-name-cell { display: block; width: 100%; max-width: 100%; min-width: 0; padding: 3px 2px 6px; white-space: normal !important; overflow-wrap: anywhere; word-break: break-word; line-height: 1.3; }
+      .lecture-table td.num-col { display: inline-block; width: auto; min-width: 24px; }
+      .lecture-table td.xp-small-text[style*="white-space: nowrap"] { display: inline-block; max-width: 48%; white-space: normal !important; overflow-wrap: anywhere; vertical-align: middle; }
+      .lecture-table td.center-cell { display: inline-flex; align-items: center; min-height: 28px; vertical-align: middle; }
+      .lecture-table td.checkbox-cell { display: inline-flex; align-items: center; justify-content: center; width: 34px; min-width: 34px; min-height: 30px; vertical-align: middle; }
+      .lecture-table td.checkbox-cell::before { font-size: 9px; margin-right: 2px; }
+      .lecture-table td.checkbox-cell:nth-of-type(5)::before { content: "و"; }
+      .lecture-table td.checkbox-cell:nth-of-type(6)::before { content: "ش"; }
+      .lecture-table td.checkbox-cell:nth-of-type(7)::before { content: "م"; }
+      .lecture-table td.checkbox-cell:nth-of-type(8)::before { content: "ح"; }
+      .lecture-table td.checkbox-cell:nth-of-type(9)::before { content: "ر"; }
+      .lecture-table td:last-child { display: inline-flex; align-items: center; min-height: 30px; }
+      .sem10-sf-panel { max-width: calc(100vw - 16px) !important; width: calc(100vw - 16px) !important; left: 8px !important; right: 8px !important; box-sizing: border-box; }
+      .sem10-sf-grid { grid-template-columns: 1fr !important; }
+      .sem10-sf-field select { width: 100%; min-width: 0; }
+      .pom-multi-picker { min-width: 0; max-width: 100%; }
+      .pom-multi-picker > div { min-width: 0; max-width: 100%; }
+    }
   `;
   document.head.appendChild(style);
 })();
