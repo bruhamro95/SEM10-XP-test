@@ -54,9 +54,8 @@
       .lecture-table td.num-col { display: inline-block; width: auto; min-width: 24px; }
       .lecture-table td.xp-small-text[style*="white-space: nowrap"] { display: inline-block; max-width: 48%; white-space: normal !important; overflow-wrap: anywhere; vertical-align: middle; }
       .lecture-table td.center-cell { display: inline-flex; align-items: center; min-height: 28px; vertical-align: middle; }
-      .lecture-table td.checkbox-cell { display: inline-flex; align-items: center; justify-content: center; width: 44px; min-width: 44px; min-height: 34px; vertical-align: middle; flex-direction: column; gap: 2px; }
-      .lecture-table td.checkbox-cell::before { display: none; }
-      .lecture-table td.checkbox-cell .stage-mobile-label { display: block; font-size: 9px; line-height: 1; color: #555; text-align: center; white-space: nowrap; }
+      .lecture-table td.checkbox-cell { display: inline-flex; align-items: center; justify-content: center; width: 48px; min-width: 48px; min-height: 38px; vertical-align: middle; flex-direction: column; gap: 2px; }
+      .lecture-table td.checkbox-cell::before { display: block; font-size: 9px; line-height: 1; color: #555; text-align: center; white-space: nowrap; margin: 0; }
       .lecture-table td.checkbox-cell:nth-of-type(5)::before { content: "ورق"; }
       .lecture-table td.checkbox-cell:nth-of-type(6)::before { content: "شرح"; }
       .lecture-table td.checkbox-cell:nth-of-type(7)::before { content: "مذاكرة"; }
