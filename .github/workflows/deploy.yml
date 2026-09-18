@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - recovery-feature-complete
+      - restore-full-features-v2
   workflow_dispatch:
 
 permissions:
