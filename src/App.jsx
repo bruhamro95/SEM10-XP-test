@@ -67,7 +67,6 @@ function sectionsOf(discipline) {
   return out;
 }
 const STAGES = [{ key: "paper", label: "ورق" }, { key: "explain", label: "شرح" }, { key: "study", label: "مذاكرة" }, { key: "solve", label: "حل" }, { key: "review", label: "مراجعة" }];
-const PROGRESS_STAGES = STAGES.filter((s) => s.key !== "paper");
 const STALE_DAYS = 14;
 
 /* ============================================================================
@@ -351,19 +350,19 @@ function TrackerApp({ discipline, progress, setProgress }) {
   const disciplineLectures = LECTURES.filter((l) => l.discipline === discipline);
   const cell = (id) => (progress[id] || {});
   const isDone = (id, stageKey) => !!cell(id)[stageKey];
-  const doneCount = (id) => PROGRESS_STAGES.filter((s) => isDone(id, s.key)).length;
+  const doneCount = (id) => STAGES.filter((s) => isDone(id, s.key)).length;
   const isFlagged = (id) => !!cell(id).flag;
   const lastActivity = (id) => { const c = cell(id); let max = 0; STAGES.forEach((s) => { if (c[s.key]) max = Math.max(max, new Date(c[s.key]).getTime()); }); return max ? new Date(max) : null; };
-  const isStale = (id) => { const dc = doneCount(id); if (dc === 0 || dc === PROGRESS_STAGES.length) return false; const la = lastActivity(id); if (!la) return false; return (Date.now() - la.getTime()) / 86400000 > STALE_DAYS; };
+  const isStale = (id) => { const dc = doneCount(id); if (dc === 0 || dc === STAGES.length) return false; const la = lastActivity(id); if (!la) return false; return (Date.now() - la.getTime()) / 86400000 > STALE_DAYS; };
   const toggleStage = (id, stageKey) => setProgress((prev) => { const cur = prev[id] || {}; return { ...prev, [id]: { ...cur, [stageKey]: cur[stageKey] ? false : new Date().toISOString() } }; });
   const toggleFlag = (id) => setProgress((prev) => { const cur = prev[id] || {}; return { ...prev, [id]: { ...cur, flag: !cur.flag } }; });
 
-  const fullyDone = disciplineLectures.filter((l) => doneCount(l.id) === PROGRESS_STAGES.length).length;
+  const fullyDone = disciplineLectures.filter((l) => doneCount(l.id) === STAGES.length).length;
   const notStarted = disciplineLectures.filter((l) => doneCount(l.id) === 0).length;
   const inProgress = disciplineLectures.length - fullyDone - notStarted;
   const flaggedCount = disciplineLectures.filter((l) => isFlagged(l.id)).length;
   const staleCount = disciplineLectures.filter((l) => isStale(l.id)).length;
-  const totalCells = disciplineLectures.length * PROGRESS_STAGES.length;
+  const totalCells = disciplineLectures.length * STAGES.length;
   const doneCells = disciplineLectures.reduce((a, l) => a + doneCount(l.id), 0);
   const overallPct = totalCells ? Math.round((doneCells / totalCells) * 100) : 0;
   const visible = disciplineLectures.filter((l) => {
@@ -445,7 +444,7 @@ function TrackerApp({ discipline, progress, setProgress }) {
           if (rows.length === 0) return null;
           const allInSection = disciplineLectures.filter((l) => l.section === section);
           const secDone = allInSection.reduce((a, l) => a + doneCount(l.id), 0);
-          const secTotal = allInSection.length * PROGRESS_STAGES.length;
+          const secTotal = allInSection.length * STAGES.length;
           const secPct = secTotal ? Math.round((secDone / secTotal) * 100) : 0;
           return (
             <div key={section} className="section-block" style={{ borderLeft: "4px solid " + (SECTION_COLORS[section] || "#ccc") }}>
@@ -658,11 +657,11 @@ function GoalsApp({ sessions, settings, setSettings }) {
    ============================================================================ */
 function OverviewApp({ progress, openApp, allData, setAllData }) {
   const cell = (id) => progress[id] || {};
-  const doneCount = (id) => PROGRESS_STAGES.filter((s) => cell(id)[s.key]).length;
+  const doneCount = (id) => STAGES.filter((s) => cell(id)[s.key]).length;
   const disciplines = ["Surgery", "Medicine"];
   const totalLectures = LECTURES.length;
   const totalSections = disciplines.reduce((a, d) => a + sectionsOf(d).length, 0);
-  const totalCells = totalLectures * PROGRESS_STAGES.length;
+  const totalCells = totalLectures * STAGES.length;
   const doneCells = LECTURES.reduce((a, l) => a + doneCount(l.id), 0);
   const overallPct = totalCells ? Math.round((doneCells / totalCells) * 100) : 0;
   const midCount = LECTURES.filter((l) => l.mid).length;
@@ -708,7 +707,7 @@ function OverviewApp({ progress, openApp, allData, setAllData }) {
       </div>
       {disciplines.map((d) => {
         const lecs = LECTURES.filter((l) => l.discipline === d);
-        const dTotal = lecs.length * PROGRESS_STAGES.length;
+        const dTotal = lecs.length * STAGES.length;
         const dDone = lecs.reduce((a, l) => a + doneCount(l.id), 0);
         const dPct = dTotal ? Math.round((dDone / dTotal) * 100) : 0;
         return (
@@ -1100,14 +1099,12 @@ function Sem10XPApp() {
   const secondsLeft = timer.running && timer.endsAt ? Math.max(0, Math.round((timer.endsAt - Date.now()) / 1000)) : timer.remaining;
 
   const runCompletion = useCallback(() => {
-    const finished = activeSessionRef.current || { mode: timer.mode, linkedLabel: "", linkedGroup: "", linkedStage: "", linkedPlanId: "", linkedLectureId: "", linkedId: timer.linkedId || "", linkedItems: timer.linkedItems || [] };
+    const finished = activeSessionRef.current || { mode: timer.mode, linkedLabel: "", linkedGroup: "", linkedStage: "", linkedPlanId: "", linkedLectureId: "" };
     playChime("notify", timer.soundEnabled);
     if (finished.mode === "pomodoro") {
       const items = Array.isArray(finished.linkedItems) && finished.linkedItems.length
         ? finished.linkedItems
-        : (Array.isArray(timer.linkedItems) && timer.linkedItems.length
-          ? timer.linkedItems
-          : (finished.linkedId ? [{ id: finished.linkedId, label: finished.linkedLabel, groupLabel: finished.linkedGroup, stage: finished.linkedStage, planId: finished.linkedPlanId, lectureId: finished.linkedLectureId }] : []));
+        : (finished.linkedId ? [{ id: finished.linkedId, label: finished.linkedLabel, groupLabel: finished.linkedGroup, stage: finished.linkedStage, planId: finished.linkedPlanId, lectureId: finished.linkedLectureId }] : []);
       if (items.length) {
         const stamp = Date.now();
         items.forEach((item, index) => addSession({
@@ -1195,18 +1192,6 @@ function Sem10XPApp() {
     skip: () => {
       if (!timer.running && !timer.paused) return;
       completingRef.current = timer.endsAt;
-      if (!activeSessionRef.current) {
-        activeSessionRef.current = {
-          mode: timer.mode,
-          linkedId: timer.linkedId || "",
-          linkedLabel: timer.linkedLabel || "",
-          linkedGroup: timer.linkedGroup || "",
-          linkedStage: timer.linkedStage || "",
-          linkedPlanId: timer.linkedPlanId || "",
-          linkedLectureId: timer.linkedLectureId || "",
-          linkedItems: timer.linkedItems || [],
-        };
-      }
       runCompletion();
     },
     reset: () => { playChime("reset", timer.soundEnabled); completingRef.current = null; activeSessionRef.current = null; setTimer((t) => ({ ...t, running: false, paused: false, endsAt: null, remaining: durFor(t.mode), linkedId: "", linkedLabel: "", linkedGroup: "", linkedStage: "", linkedPlanId: "", linkedLectureId: "", linkedItems: [] })); },
