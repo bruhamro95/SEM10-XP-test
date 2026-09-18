@@ -6,6 +6,7 @@ on:
       - main
       - recovery-feature-complete
       - restore-full-features-v2
+      - restore-original-working-feature-files
   pull_request:
   workflow_dispatch:
 
