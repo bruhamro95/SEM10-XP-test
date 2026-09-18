@@ -21,12 +21,21 @@ const enhancements = [
   "./tracker-chapter-options.js",
 ];
 
-const loadEnhancements = () => {
-  enhancements.forEach((path) => {
-    import(path).catch((error) => {
-      console.error("SEM10-XP enhancement failed:", path, error);
-    });
+const loadEnhancements = async () => {
+  await new Promise((resolve) => {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", resolve, { once: true });
+    } else {
+      resolve();
+    }
   });
+  await Promise.all(
+    enhancements.map((path) =>
+      import(path).catch((error) => {
+        console.error("SEM10-XP enhancement failed:", path, error);
+      })
+    )
+  );
 };
 
 if (typeof requestAnimationFrame === "function") {
