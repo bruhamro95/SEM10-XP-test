@@ -1099,12 +1099,14 @@ function Sem10XPApp() {
   const secondsLeft = timer.running && timer.endsAt ? Math.max(0, Math.round((timer.endsAt - Date.now()) / 1000)) : timer.remaining;
 
   const runCompletion = useCallback(() => {
-    const finished = activeSessionRef.current || { mode: timer.mode, linkedLabel: "", linkedGroup: "", linkedStage: "", linkedPlanId: "", linkedLectureId: "" };
+    const finished = activeSessionRef.current || { mode: timer.mode, linkedLabel: "", linkedGroup: "", linkedStage: "", linkedPlanId: "", linkedLectureId: "", linkedId: timer.linkedId || "", linkedItems: timer.linkedItems || [] };
     playChime("notify", timer.soundEnabled);
     if (finished.mode === "pomodoro") {
       const items = Array.isArray(finished.linkedItems) && finished.linkedItems.length
         ? finished.linkedItems
-        : (finished.linkedId ? [{ id: finished.linkedId, label: finished.linkedLabel, groupLabel: finished.linkedGroup, stage: finished.linkedStage, planId: finished.linkedPlanId, lectureId: finished.linkedLectureId }] : []);
+        : (Array.isArray(timer.linkedItems) && timer.linkedItems.length
+          ? timer.linkedItems
+          : (finished.linkedId ? [{ id: finished.linkedId, label: finished.linkedLabel, groupLabel: finished.linkedGroup, stage: finished.linkedStage, planId: finished.linkedPlanId, lectureId: finished.linkedLectureId }] : []));
       if (items.length) {
         const stamp = Date.now();
         items.forEach((item, index) => addSession({
@@ -1192,6 +1194,18 @@ function Sem10XPApp() {
     skip: () => {
       if (!timer.running && !timer.paused) return;
       completingRef.current = timer.endsAt;
+      if (!activeSessionRef.current) {
+        activeSessionRef.current = {
+          mode: timer.mode,
+          linkedId: timer.linkedId || "",
+          linkedLabel: timer.linkedLabel || "",
+          linkedGroup: timer.linkedGroup || "",
+          linkedStage: timer.linkedStage || "",
+          linkedPlanId: timer.linkedPlanId || "",
+          linkedLectureId: timer.linkedLectureId || "",
+          linkedItems: timer.linkedItems || [],
+        };
+      }
       runCompletion();
     },
     reset: () => { playChime("reset", timer.soundEnabled); completingRef.current = null; activeSessionRef.current = null; setTimer((t) => ({ ...t, running: false, paused: false, endsAt: null, remaining: durFor(t.mode), linkedId: "", linkedLabel: "", linkedGroup: "", linkedStage: "", linkedPlanId: "", linkedLectureId: "", linkedItems: [] })); },
