@@ -46,9 +46,6 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       injectRegister: "auto",
-      // One deployment kill-switch for stale service workers left by the username/repo move.
-      // This build will unregister the old worker and clear its caches on activation.
-      selfDestroying: true,
       includeAssets: [
         "icons/favicon-16.png",
         "icons/favicon-32.png",
