@@ -493,6 +493,36 @@ function TrackerApp({ discipline, progress, setProgress }) {
    ============================================================================ */
 const MODES = { pomodoro: { label: "Pomodoro", color: "#c0392b" }, short: { label: "Short Break", color: "#1f7a3d" }, long: { label: "Long Break", color: "#0a56d6" } };
 
+function PomodoroMultiPicker({ timer, timerActions, tasks, plan }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const rootRef = useRef(null);
+  const items = Array.isArray(timer.linkedItems) ? timer.linkedItems : (timer.linkedId ? [{ id: timer.linkedId, label: timer.linkedLabel, groupLabel: timer.linkedGroup, stage: timer.linkedStage, planId: timer.linkedPlanId, lectureId: timer.linkedLectureId }] : []);
+  const choices = [];
+  const weekly = (plan || []).filter((p) => !p.done);
+  choices.push(...weekly.map((p) => { const lec = LECTURES.find((l) => l.id === p.lectureId); const stageLabel = p.stage ? ((STAGES.find((s) => s.key === p.stage) || {}).label || "") : ""; return { id: "plan:" + p.id, label: p.dateKey + " — " + (lec ? lec.name : "custom") + (p.part ? " (" + p.part + ")" : "") + (stageLabel ? " [" + stageLabel + "]" : ""), groupLabel: lec ? lec.section : p.discipline, stage: p.stage || "", planId: p.id, lectureId: p.lectureId || "" }; }));
+  choices.push(...(tasks || []).map((t) => ({ id: "task:" + t.id, label: t.project + " — " + t.name, groupLabel: t.project, stage: "", planId: "", lectureId: "" })));
+  choices.push(...LECTURES.filter((l) => l.discipline === "Surgery").map((l) => ({ id: "lec:" + l.id, label: l.section + " — " + l.name, groupLabel: l.section, stage: "", planId: "", lectureId: l.id })));
+  choices.push(...LECTURES.filter((l) => l.discipline === "Medicine").map((l) => ({ id: "lec:" + l.id, label: l.section + " — " + l.name, groupLabel: l.section, stage: "", planId: "", lectureId: l.id })));
+  const selectedIds = new Set(items.map((x) => x.id));
+  const q = query.trim().toLowerCase();
+  const filtered = q ? choices.filter((c) => c.label.toLowerCase().includes(q)) : choices;
+  const locked = !!(timer.running || timer.paused);
+  useEffect(() => { const onDown = (e) => { if (open && rootRef.current && !rootRef.current.contains(e.target)) setOpen(false); }; document.addEventListener("mousedown", onDown); return () => document.removeEventListener("mousedown", onDown); }, [open]);
+  const toggle = (choice) => { if (locked) return; const next = selectedIds.has(choice.id) ? items.filter((x) => x.id !== choice.id) : [...items, choice]; timerActions.linkMany(next); };
+  return <div ref={rootRef} className="pom-multi-picker" style={{ position: "relative", minWidth: 0 }}>
+    <div style={{ display: "flex", gap: 5, flexWrap: "wrap", maxHeight: 120, overflowY: "auto", overflowX: "hidden", marginBottom: 6, minWidth: 0 }}>
+      {items.map((item) => <span key={item.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, maxWidth: "100%", minWidth: 0, padding: "3px 6px", border: "1px solid #7f9db9", background: "#eef4ff", fontSize: 11 }}><span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</span><button type="button" disabled={locked} onClick={() => toggle(item)} style={{ border: 0, background: "transparent", cursor: locked ? "default" : "pointer", padding: 0, lineHeight: 1 }}>×</button></span>)}
+    </div>
+    <button type="button" className="xp-select" disabled={locked} onClick={() => !locked && setOpen((v) => !v)} style={{ width: "100%", minHeight: 34, boxSizing: "border-box", textAlign: "left", cursor: locked ? "default" : "pointer" }}>{items.length ? items.length + " task" + (items.length === 1 ? "" : "s") + " selected" : "— Select tasks / lectures —"}<span style={{ float: "right" }}>▾</span></button>
+    {open && !locked && <div style={{ position: "absolute", zIndex: 100, left: 0, right: 0, top: "100%", marginTop: 2, maxHeight: 280, overflowY: "auto", background: "#fff", border: "1px solid #7f9db9", boxShadow: "2px 2px 4px rgba(0,0,0,.25)", padding: 4, boxSizing: "border-box" }}>
+      <input autoFocus className="xp-text-input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search tasks / lectures..." style={{ width: "100%", boxSizing: "border-box", marginBottom: 4 }} />
+      {filtered.length === 0 && <div className="xp-small-text" style={{ padding: 6 }}>No matches.</div>}
+      {filtered.map((choice) => <button key={choice.id} type="button" onClick={() => toggle(choice)} style={{ display: "flex", width: "100%", alignItems: "center", gap: 6, border: 0, borderBottom: "1px solid #eee", background: selectedIds.has(choice.id) ? "#e7f0ff" : "#fff", padding: "6px 5px", textAlign: "left", cursor: "pointer", fontFamily: "Tahoma, sans-serif", fontSize: 11 }}><span style={{ width: 14, height: 14, border: "1px solid #777", display: "inline-flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>{selectedIds.has(choice.id) ? "✓" : ""}</span><span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{choice.label}</span></button>)}
+    </div>}
+  </div>;
+}
+
 function TimerApp({ timer, timerActions, settings, setSettings, tasks, addTask, plan }) {
   const [newTaskProject, setNewTaskProject] = useState("");
   const [newTaskName, setNewTaskName] = useState("");
@@ -534,25 +564,7 @@ function TimerApp({ timer, timerActions, settings, setSettings, tasks, addTask, 
       )}
 
       <XPGroupBox title="What are you working on?" style={{ marginTop: 12 }}>
-        <select className="xp-select" value={timer.linkedId || ""} disabled={timer.running || timer.paused} onChange={(e) => timerActions.link(e.target.value)}>
-          <option value="">— Freeform (not linked) —</option>
-          {plan && plan.filter((p) => !p.done).length > 0 && (
-            <optgroup label="This Week's Plan">
-              {plan.filter((p) => !p.done).map((p) => {
-                const lec = LECTURES.find((l) => l.id === p.lectureId);
-                const stageLabel = p.stage ? (STAGES.find((s) => s.key === p.stage) || {}).label : "";
-                return <option key={p.id} value={"plan:" + p.id}>{p.dateKey} — {lec ? lec.name : "custom"}{p.part ? " (" + p.part + ")" : ""}{stageLabel ? " [" + stageLabel + "]" : ""}</option>;
-              })}
-            </optgroup>
-          )}
-          {projects.length > 0 && (
-            <optgroup label="My Tasks">
-              {tasks.map((t) => <option key={t.id} value={"task:" + t.id}>{t.project} — {t.name}</option>)}
-            </optgroup>
-          )}
-          <optgroup label="Surgery">{LECTURES.filter((l) => l.discipline === "Surgery").map((l) => <option key={l.id} value={"lec:" + l.id}>{l.section} — {l.name}</option>)}</optgroup>
-          <optgroup label="Medicine">{LECTURES.filter((l) => l.discipline === "Medicine").map((l) => <option key={l.id} value={"lec:" + l.id}>{l.section} — {l.name}</option>)}</optgroup>
-        </select>
+        <PomodoroMultiPicker timer={timer} timerActions={timerActions} tasks={tasks} plan={plan} />
         <div className="row-gap" style={{ marginTop: 8 }}>
           <input className="xp-text-input" placeholder="Project (e.g. Gym, Thesis)" value={newTaskProject} onChange={(e) => setNewTaskProject(e.target.value)} style={{ flex: 1 }} />
           <input className="xp-text-input" placeholder="Task name" value={newTaskName} onChange={(e) => setNewTaskName(e.target.value)} style={{ flex: 1 }} />
@@ -1063,7 +1075,7 @@ function Sem10XPApp() {
   const addTask = (t) => setTasks((prev) => [...prev, t]);
 
   /* ---- Timer engine, lives here so it survives minimizing/switching windows ---- */
-  const [timer, setTimer] = useState({ mode: "pomodoro", running: false, paused: false, endsAt: null, remaining: 25 * 60, linkedId: "", linkedLabel: "", linkedGroup: "", linkedStage: "", linkedPlanId: "", linkedLectureId: "", soundEnabled: true });
+  const [timer, setTimer] = useState({ mode: "pomodoro", running: false, paused: false, endsAt: null, remaining: 25 * 60, linkedId: "", linkedLabel: "", linkedGroup: "", linkedStage: "", linkedPlanId: "", linkedLectureId: "", linkedItems: [], soundEnabled: true });
   const [tick, setTick] = useState(0);
   // Keyed to the specific endsAt already completed (not a boolean+timeout), so a
   // tick and a visibilitychange firing for the same expiry can never double-complete it.
@@ -1087,17 +1099,27 @@ function Sem10XPApp() {
   const secondsLeft = timer.running && timer.endsAt ? Math.max(0, Math.round((timer.endsAt - Date.now()) / 1000)) : timer.remaining;
 
   const runCompletion = useCallback(() => {
-    const finished = activeSessionRef.current || { mode: timer.mode, linkedLabel: "", linkedGroup: "", linkedStage: "", linkedPlanId: "", linkedLectureId: "" };
+    const finished = activeSessionRef.current || { mode: timer.mode, linkedLabel: "", linkedGroup: "", linkedStage: "", linkedPlanId: "", linkedLectureId: "", linkedId: timer.linkedId || "", linkedItems: timer.linkedItems || [] };
     playChime("notify", timer.soundEnabled);
     if (finished.mode === "pomodoro") {
-      addSession({
-        id: "S" + Date.now(), ts: new Date().toISOString(), durationMin: settings.pomodoroMin,
-        label: finished.linkedLabel || "Freeform", groupLabel: finished.linkedGroup || "Freeform",
-        lectureId: finished.linkedLectureId || null,
-        stage: finished.linkedStage || null, planId: finished.linkedPlanId || null,
-      });
-      if (finished.linkedPlanId) setPlan((prev) => prev.map((p) => (p.id === finished.linkedPlanId ? { ...p, completedPoms: (p.completedPoms || 0) + 1 } : p)));
-      notify("Pomodoro complete", finished.linkedLabel ? "Nice work on: " + finished.linkedLabel : "Time for a break.");
+      const items = Array.isArray(finished.linkedItems) && finished.linkedItems.length
+        ? finished.linkedItems
+        : (Array.isArray(timer.linkedItems) && timer.linkedItems.length
+          ? timer.linkedItems
+          : (finished.linkedId ? [{ id: finished.linkedId, label: finished.linkedLabel, groupLabel: finished.linkedGroup, stage: finished.linkedStage, planId: finished.linkedPlanId, lectureId: finished.linkedLectureId }] : []));
+      if (items.length) {
+        const stamp = Date.now();
+        items.forEach((item, index) => addSession({
+          id: "S" + stamp + "-" + index, ts: new Date().toISOString(), durationMin: settings.pomodoroMin,
+          label: item.label || "Freeform", groupLabel: item.groupLabel || "Freeform",
+          lectureId: item.lectureId || null, stage: item.stage || null, planId: item.planId || null,
+          linkedItems: items.map((x) => ({ id: x.id, label: x.label, groupLabel: x.groupLabel, stage: x.stage || null, planId: x.planId || null, lectureId: x.lectureId || null }))
+        }));
+        const planIds = new Set(items.map((x) => x.planId).filter(Boolean));
+        if (planIds.size) setPlan((prev) => prev.map((p) => planIds.has(p.id) ? { ...p, completedPoms: (p.completedPoms || 0) + items.filter((x) => x.planId === p.id).length } : p));
+      }
+      const labels = items.map((x) => x.label).filter(Boolean);
+      notify("Pomodoro complete", labels.length ? "Nice work on: " + labels.join(", ") : "Time for a break.");
       pomosThisSet.current += 1;
     } else {
       notify("Break's over", "Back to it when you're ready.");
@@ -1106,7 +1128,7 @@ function Sem10XPApp() {
     const nextMode = timer.mode === "pomodoro" ? (pomosThisSet.current % settings.longBreakEvery === 0 ? "long" : "short") : "pomodoro";
     const willAuto = nextMode === "pomodoro" ? settings.autoStartPomodoros : settings.autoStartBreaks;
     activeSessionRef.current = willAuto
-      ? { mode: nextMode, linkedId: timer.linkedId, linkedLabel: timer.linkedLabel, linkedGroup: timer.linkedGroup, linkedStage: timer.linkedStage, linkedPlanId: timer.linkedPlanId, linkedLectureId: timer.linkedLectureId }
+      ? { mode: nextMode, linkedId: timer.linkedId, linkedLabel: timer.linkedLabel, linkedGroup: timer.linkedGroup, linkedStage: timer.linkedStage, linkedPlanId: timer.linkedPlanId, linkedLectureId: timer.linkedLectureId, linkedItems: timer.linkedItems || [] }
       : null;
 
     setTimer((t) => ({
@@ -1158,7 +1180,7 @@ function Sem10XPApp() {
         activeSessionRef.current = {
           mode: timer.mode, linkedId: timer.linkedId, linkedLabel: timer.linkedLabel,
           linkedGroup: timer.linkedGroup, linkedStage: timer.linkedStage,
-          linkedPlanId: timer.linkedPlanId, linkedLectureId: timer.linkedLectureId,
+          linkedPlanId: timer.linkedPlanId, linkedLectureId: timer.linkedLectureId, linkedItems: timer.linkedItems || [],
         };
       }
       setTimer((t) => ({ ...t, running: true, endsAt: Date.now() + (t.paused ? t.remaining : durFor(t.mode)) * 1000 }));
@@ -1172,14 +1194,26 @@ function Sem10XPApp() {
     skip: () => {
       if (!timer.running && !timer.paused) return;
       completingRef.current = timer.endsAt;
+      if (!activeSessionRef.current) {
+        activeSessionRef.current = {
+          mode: timer.mode,
+          linkedId: timer.linkedId || "",
+          linkedLabel: timer.linkedLabel || "",
+          linkedGroup: timer.linkedGroup || "",
+          linkedStage: timer.linkedStage || "",
+          linkedPlanId: timer.linkedPlanId || "",
+          linkedLectureId: timer.linkedLectureId || "",
+          linkedItems: timer.linkedItems || [],
+        };
+      }
       runCompletion();
     },
-    reset: () => { playChime("reset", timer.soundEnabled); completingRef.current = null; activeSessionRef.current = null; setTimer((t) => ({ ...t, running: false, paused: false, endsAt: null, remaining: durFor(t.mode) })); },
+    reset: () => { playChime("reset", timer.soundEnabled); completingRef.current = null; activeSessionRef.current = null; setTimer((t) => ({ ...t, running: false, paused: false, endsAt: null, remaining: durFor(t.mode), linkedId: "", linkedLabel: "", linkedGroup: "", linkedStage: "", linkedPlanId: "", linkedLectureId: "", linkedItems: [] })); },
     toggleSound: () => setTimer((t) => ({ ...t, soundEnabled: t.soundEnabled === false })),
-    setMode: (m) => { activeSessionRef.current = null; setTimer((t) => ({ ...t, mode: m, running: false, paused: false, endsAt: null, remaining: durFor(m) })); },
+    setMode: (m) => { activeSessionRef.current = null; setTimer((t) => ({ ...t, mode: m, running: false, paused: false, endsAt: null, remaining: durFor(m), linkedId: "", linkedLabel: "", linkedGroup: "", linkedStage: "", linkedPlanId: "", linkedLectureId: "", linkedItems: [] })); },
     link: (val) => setTimer((t) => {
       if (t.running || t.paused) return t; // locked while a round is active; the picker is disabled too, this is defense in depth
-      if (!val) return { ...t, linkedId: "", linkedLabel: "", linkedGroup: "", linkedStage: "", linkedPlanId: "", linkedLectureId: "" };
+      if (!val) return { ...t, linkedId: "", linkedLabel: "", linkedGroup: "", linkedStage: "", linkedPlanId: "", linkedLectureId: "", linkedItems: [] };
       if (val.startsWith("lec:")) { const l = LECTURES.find((x) => x.id === val.slice(4)); return { ...t, linkedId: val, linkedLabel: l ? l.name : "", linkedGroup: l ? l.section : "", linkedStage: "", linkedPlanId: "", linkedLectureId: l ? l.id : "" }; }
       if (val.startsWith("task:")) { const tk = tasks.find((x) => x.id === val.slice(5)); return { ...t, linkedId: val, linkedLabel: tk ? tk.name : "", linkedGroup: tk ? tk.project : "", linkedStage: "", linkedPlanId: "", linkedLectureId: "" }; }
       if (val.startsWith("plan:")) {
@@ -1192,6 +1226,13 @@ function Sem10XPApp() {
       }
       return t;
     }),
+    linkMany: (items) => setTimer((t) => {
+      if (t.running || t.paused) return t;
+      const safe = Array.isArray(items) ? items.filter(Boolean) : [];
+      if (!safe.length) return { ...t, linkedId: "", linkedLabel: "", linkedGroup: "", linkedStage: "", linkedPlanId: "", linkedLectureId: "", linkedItems: [] };
+      return { ...t, linkedId: safe[0].id || "", linkedLabel: safe.length === 1 ? (safe[0].label || "") : safe.length + " tasks selected", linkedGroup: Array.from(new Set(safe.map((x) => x.groupLabel).filter(Boolean))).join(" + "), linkedStage: safe[0].stage || "", linkedPlanId: safe.length === 1 ? (safe[0].planId || "") : "", linkedLectureId: safe.length === 1 ? (safe[0].lectureId || "") : "", linkedItems: safe };
+    }),
+    clearLinks: () => setTimer((t) => ({ ...t, linkedId: "", linkedLabel: "", linkedGroup: "", linkedStage: "", linkedPlanId: "", linkedLectureId: "", linkedItems: [] })),
   };
 
   const [windows, setWindows] = useState([]);
@@ -1233,7 +1274,7 @@ function Sem10XPApp() {
     setWindows((ws) => ws.map((w) => (w.id === id ? { ...w, z } : w)));
     setFocusedId(id);
   };
-  const startPomForEntry = (entry) => { timerActions.link("plan:" + entry.id); timerActions.setMode("pomodoro"); openApp("timer"); };
+  const startPomForEntry = (entry) => { timerActions.setMode("pomodoro"); timerActions.link("plan:" + entry.id); openApp("timer"); };
 
   const renderAppBody = (id) => {
     if (id === "computer") return <OverviewApp progress={progress} openApp={openApp} allData={{ progress, sessions, tasks, plan, exams, settings }} setAllData={{ setProgress, setSessions, setTasks, setPlan, setExams, setSettings }} />;
