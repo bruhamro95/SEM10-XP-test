@@ -8,8 +8,8 @@ ReactDOM.createRoot(document.getElementById("root")).render(
   </React.StrictMode>
 );
 
-// Optional UI enhancements must never be allowed to block the core app.
-// Load them after React has mounted; a failure in one enhancement is isolated.
+// Optional UI enhancements must load only after the app has mounted.
+// Each enhancement is isolated so one failure can never disable the others.
 const enhancements = [
   "./audio-unlock.js",
   "./mobile-task-search.js",
@@ -21,4 +21,26 @@ const enhancements = [
   "./tracker-chapter-options.js",
 ];
 
-Promise.allSettled(enhancements.map((path) => import(path))).catch(() => {});
+const loadEnhancements = async () => {
+  await new Promise((resolve) => {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", resolve, { once: true });
+    } else {
+      resolve();
+    }
+  });
+
+  await Promise.all(
+    enhancements.map((path) =>
+      import(path).catch((error) => {
+        console.error("SEM10-XP enhancement failed:", path, error);
+      })
+    )
+  );
+};
+
+if (typeof requestAnimationFrame === "function") {
+  requestAnimationFrame(loadEnhancements);
+} else {
+  setTimeout(loadEnhancements, 0);
+}
