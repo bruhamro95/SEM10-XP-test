@@ -1,3 +1,4 @@
+// Deployment refresh: preserve the known-working startup path.
 import "./audio-unlock.js";
 import "./mobile-task-search.js";
 import "./mobile-ui-fixes.js";
